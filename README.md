@@ -1,0 +1,117 @@
+# Comment Companion（GoLand 插件）
+
+注释驱动的 Go 编码伴侣：在函数上方写 `// ai：...`，AI 读取注释、改函数体，完成后把注释规范化成普通 Go doc comment。没有聊天窗口，交流只发生在注释里。是 [Ayane](docs/comment-companion-mvp-design.md) 的编码 companion 能力的第一具身体。
+
+## 当前状态
+
+| 模块 | 状态 |
+|---|---|
+| Kotlin 离线工具链（JBR 25 + Kotlin 2.4.0 + JUnit 6） | ✅ 可用 |
+| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 56 个测试通过 |
+| 注释规范化（只改指令段、标记必然消失、防再次触发） | ✅ 已实现并测试 |
+| 空闲窗口 `IdleGate`（1–1.5s debounce 的纯逻辑） | ✅ 已实现并测试 |
+| 平台/Go PSI 的 Kotlin 互操作探针 | ✅ `scripts/check-platform.sh` 通过 |
+| 插件加载（plugin.xml 被 GoLand 接受） | ✅ 2026-10-18 沙盒实测（`Loaded custom plugins: Comment Companion (0.1.0)`） |
+| Go PSI 运行时（`GoFile.functions` / `getBlock()`） | ✅ 沙盒实测（Add/Mul 各带函数体） |
+| Inlay 运行时（加 / 销毁） | ✅ 沙盒实测（`added-and-disposed`） |
+| core 领域模型（FunctionKey/Snapshot/EditPlan/RoundStage/RoundRecord/Question） | ✅ 已实现并测试 |
+| 串行工作队列（坐标+指纹、去重、空闲判定） | ✅ 已实现并测试 |
+| 端口接口（Workspace/Feedback/Engine/Verifier/Settings/Ledger/Scheduler） | ✅ 已定义 |
+| 架构守则检查（core/ports 不得依赖平台/上层） | ✅ 已接入 `scripts/test.sh` |
+| 扫描器（2s 空闲审查）/ 编排器 / 状态栏 / 侧边栏 / 模型调用 | ⏳ M1b–M3 |
+
+## M0 真机验证（2026-10-18，已通过）
+
+`./scripts/dev-sandbox.sh` 会在 `.sandbox/` 下起一个隔离的 GoLand（复用日常配置里的 license 与 options，插件目录/系统目录/日志目录全部隔离），打开内置的验证项目，插件的 `VerifyStartupActivity` 写入 `.sandbox/verify.json`：
+
+```json
+{
+  "plugin": "loaded",
+  "project": "project",
+  "goFile": ".sandbox/project/verify.go",
+  "psiClass": "com.goide.psi.GoFile",
+  "textDirectives": ["实现加法，只处理 int。", "实现乘法"],
+  "goFunctionNames": ["Add", "Mul"],
+  "goFunctionsWithBody": 2,
+  "goMethods": 0,
+  "editor": "opened",
+  "inlay": "added-and-disposed"
+}
+```
+
+结论：plugin.xml 依赖声明被接受、Go PSI 在第三方插件里可用、注释协议在真实 PSI 文本上工作、编辑器与 Inlay 可用。
+细节与踩坑见 [m0-sandbox-verification.md](docs/evidence/m0-sandbox-verification.md)。
+
+## 环境要求
+
+- macOS（本机为 GoLand 2026.2.3，build `GO-262.10968.67`，自带 JBR 25）
+- 无需系统 JDK / Gradle / Maven：脚本直接用 GoLand 自带 JBR 的 `java`
+- 首次运行会自动从 Maven Central 下载 Kotlin 工具链（约 70 MB）
+
+## 常用命令
+
+```bash
+# 首次：下载离线工具链（写入 .toolchain/）
+./scripts/bootstrap-toolchain.sh
+
+# 跑全部单元测试（编译 main + test，JUnit console）
+./scripts/test.sh
+
+# 只编译 main
+./scripts/compile-main.sh
+
+# 检查 Kotlin 与 GoLand 平台 / Go PSI 的互操作
+./scripts/check-platform.sh
+
+# 打包插件（build/comment-companion-0.1.0.zip）
+./scripts/build.sh
+
+# 隔离沙盒启动 GoLand 并加载插件（DEBUG_PORT=5005 可开 JDWP）
+./scripts/dev-sandbox.sh
+```
+
+安装到日常 GoLand：把 `build/comment-companion/` 整个目录拷进
+`~/Library/Application Support/JetBrains/GoLand2026.2/plugins/`，或 `Settings | Plugins | Install Plugin from Disk` 选 zip，然后重启 GoLand。
+
+## 目录结构
+
+```
+comment-companion/
+├── scripts/                  # 离线构建/测试/沙盒脚本（bash，兼容 macOS bash 3.2）
+├── src/main/kotlin/dev/commentcompanion/
+│   ├── core/                 # 纯 Kotlin 领域层（protocol/model/queue/policy/prompt）
+│   ├── ports/                # 能力接口（Workspace/Engine/Verifier/Settings/Ledger…）
+│   └── plugin/               # 现有 GoLand 入口（M1b 将迁入 ide/）
+├── src/main/resources/META-INF/plugin.xml
+├── src/test/kotlin/          # JUnit 5 测试
+├── tools/platform-probe/     # 只用于编译期平台兼容性检查，不打包
+├── build.gradle.kts          # 未来标准构建（本机 Gradle 不可下载，暂未启用）
+└── .toolchain/               # 下载的 Kotlin/JUnit jar（gitignore）
+```
+
+## 注释协议（v0）
+
+| 形式 | 含义 | 位置规则 |
+|---|---|---|
+| `// ai：...` / `// ai: ...` | 用户指令 | `//` 注释块里，标记必须在某行内容开头；标记行之上是方法描述（保留），之下是指令续行 |
+| `// ai？...` / `// ai? ...` | AI 反问 | 同上 |
+| 斜杠星号块注释 | 指令 | 标记必须在块的第一个非空内容行开头 |
+
+- 标记大小写不敏感，冒号/问号支持全角半角，`ai` 与标点之间允许空白，`//` 后允许没有空格。
+- 规范化后标记必须完全消失——这是防重复触发的结构性保证（Aider 的 `AI?` 残留、pi-watcher 的误删都源于标记由模型/粗粒度删除收尾）。
+- 指令段之外的注释行（方法描述）在规范化时原样保留。
+
+## 证据与设计文档
+
+- 设计：[comment-companion-mvp-design.md](docs/comment-companion-mvp-design.md)
+- 结构（v2 已对齐）：[structure-design.md](docs/architecture/structure-design.md)
+- GoLand 环境与可行性：[goland-2026.2-environment.md](docs/evidence/goland-2026.2-environment.md)
+- Aider `--watch-files` 源码审查：[aider-watch-files.md](docs/evidence/aider-watch-files.md)
+- pi-watcher 源码审查：[pi-watcher.md](docs/evidence/pi-watcher.md)
+- GoLand 参考插件审查：[goland-plugin-refs.md](docs/evidence/goland-plugin-refs.md)
+
+## 已知约束
+
+- 本机 Gradle distribution 不可下载（`services.gradle.org` / `downloads.gradle.org` 均超时），所以 v1 采用 Kotlin + `javac` 风格直编脚本；`build.gradle.kts` 留作后续迁移。
+- Kotlin 版本对齐 GoLand 内置 Kotlin 2.4.0；运行时 `kotlin-stdlib` 由平台提供，插件 jar 不重复打包。
+- 插件尚未包含任何 action/extension，M0 会加第一个「扫描当前文件并高亮 `ai：`」的诊断入口来验证加载。

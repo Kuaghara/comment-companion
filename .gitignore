@@ -1,0 +1,16 @@
+# 离线工具链（Kotlin 编译器 / JUnit，首次由 scripts/bootstrap-toolchain.sh 下载）
+.toolchain/
+
+# 构建产物
+build/
+.gradle/
+
+# 沙盒（dev-sandbox.sh）
+.sandbox/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
