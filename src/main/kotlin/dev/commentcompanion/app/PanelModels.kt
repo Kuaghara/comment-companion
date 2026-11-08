@@ -19,6 +19,8 @@ data class PanelSnapshot(
 data class PendingRow(
     val title: String,
     val detail: String,
+    val file: String,
+    val line: Int = 0,
 )
 
 data class ActiveRow(

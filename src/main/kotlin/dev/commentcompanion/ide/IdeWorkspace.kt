@@ -126,6 +126,16 @@ class IdeWorkspace(private val project: Project) : WorkspacePort {
         PreviewResult(errors.isNotEmpty(), errors)
     }
 
+    override fun save(file: FileKey) {
+        val vf = findVirtualFile(file) ?: return
+        ApplicationManager.getApplication().invokeLater {
+            runCatching {
+                val document = FileDocumentManager.getInstance().getDocument(vf) ?: return@invokeLater
+                FileDocumentManager.getInstance().saveDocument(document)
+            }
+        }
+    }
+
     override fun cleanupTrailingQuestion(file: FileKey, key: FunctionKey): Boolean {
         val vf = findVirtualFile(file) ?: return false
         var removed = false

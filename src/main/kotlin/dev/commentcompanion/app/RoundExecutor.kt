@@ -182,6 +182,7 @@ class RoundExecutor(
                         record(original, item, RoundStage.DONE)
                         journal.clear()
                         runCatching { workspace.cleanupTrailingQuestion(item.file, original.key) }
+                        runCatching { workspace.save(item.file) }
                         val docDump = if (System.getProperty("commentcompanion.verifyRounds") != null) {
                             " | doc=" + (workspace.readText(item.file) ?: "").replace("\n", "\\n").take(800)
                         } else {

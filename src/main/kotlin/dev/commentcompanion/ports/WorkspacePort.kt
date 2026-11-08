@@ -48,4 +48,7 @@ interface WorkspacePort {
 
     /** 清理函数体之后的 `ai？` 注释（问题已回答/失效后调用）。 */
     fun cleanupTrailingQuestion(file: FileKey, key: FunctionKey): Boolean
+
+    /** 收尾后把文档落盘（避免磁盘与 Document 不一致）。 */
+    fun save(file: FileKey)
 }

@@ -191,12 +191,35 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
             border = BorderFactory.createEmptyBorder(12, 12, 12, 12)
             font = font.deriveFont(12f)
         }
+        private val pendingModel = javax.swing.DefaultListModel<dev.commentcompanion.app.PendingRow>()
+        private val pendingList = javax.swing.JList(pendingModel).apply {
+            visibleRowCount = 4
+            cellRenderer = javax.swing.DefaultListCellRenderer()
+        }
 
         init {
+            pendingList.addMouseListener(object : java.awt.event.MouseAdapter() {
+                override fun mouseClicked(e: java.awt.event.MouseEvent?) {
+                    if (e == null || e.clickCount < 2) return
+                    val index = pendingList.locationToIndex(e.point)
+                    if (index !in 0 until pendingModel.size()) return
+                    val row = pendingModel.getElementAt(index)
+                    controller.openFile(row.file, row.line)
+                }
+            })
+            val top = JPanel(BorderLayout()).apply {
+                add(JLabel("待你处理（双击跳转）"), BorderLayout.NORTH)
+                add(JScrollPane(pendingList), BorderLayout.CENTER)
+                preferredSize = Dimension(0, 130)
+            }
+            add(top, BorderLayout.NORTH)
             add(JScrollPane(text), BorderLayout.CENTER)
         }
 
         fun refresh(snapshot: PanelSnapshot) {
+            pendingModel.clear()
+            snapshot.pending.forEach { pendingModel.addElement(it) }
+
             val current = snapshot.active
             text.text = buildString {
                 appendLine("当前任务")
@@ -206,10 +229,6 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
                     appendLine("  ${current.file} › ${current.function}")
                     appendLine("  阶段：${current.stage.name.lowercase()} · 第 ${current.attempt} 次")
                 }
-                appendLine()
-                appendLine("待你处理（${snapshot.pending.size}）")
-                if (snapshot.pending.isEmpty()) appendLine("  （无）")
-                snapshot.pending.forEach { appendLine("  • ${it.title} — ${it.detail}") }
                 appendLine()
                 appendLine("任务队列（${snapshot.queue.size}）")
                 if (snapshot.queue.isEmpty()) appendLine("  （空）")
@@ -311,6 +330,15 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
                     scanIntervalMillis = (scanInterval.value as? Number)?.toLong() ?: 2_000L,
                     failureRetry = retry.selectedItem as? FailureRetry ?: FailureRetry.AUTO_ONCE,
                 )
+            }
+            val interval = (scanInterval.value as? Number)?.toLong() ?: 2_000L
+            if (interval !in 500..10_000) {
+                javax.swing.JOptionPane.showMessageDialog(this, "扫描间隔需在 500–10000ms")
+                return
+            }
+            if (engineSource == EngineSource.PLUGIN && model.text.isBlank()) {
+                javax.swing.JOptionPane.showMessageDialog(this, "插件配置模式下必须填写模型名")
+                return
             }
             val key = String(apiKey.password)
             if (key.isNotBlank()) settings.setApiKey(key)

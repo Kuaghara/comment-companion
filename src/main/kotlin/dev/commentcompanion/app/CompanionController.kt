@@ -2,6 +2,7 @@ package dev.commentcompanion.app
 
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import dev.commentcompanion.core.model.FailureRetry
@@ -139,6 +140,21 @@ class CompanionController(private val project: Project) : Disposable {
 
     fun settings(): CompanionSettings = settings
 
+    /** 从面板跳转到文件/行。 */
+    fun openFile(relativePath: String, line: Int) {
+        val vf = workspace.findVirtualFile(FileKey(relativePath)) ?: return
+        ApplicationManager.getApplication().invokeLater {
+            com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(vf, true)
+            if (line > 0) {
+                val offset = runCatching {
+                    com.intellij.openapi.fileEditor.FileDocumentManager.getInstance()
+                        .getDocument(vf)?.getLineStartOffset((line - 1).coerceAtLeast(0))
+                }.getOrNull() ?: 0
+                com.intellij.openapi.fileEditor.OpenFileDescriptor(project, vf, offset).navigate(true)
+            }
+        }
+    }
+
     fun queueSize(): Int = queue.pendingCount()
 
     /** 面板只读快照（在 EDT 调用；内部结构已加锁）。 */
@@ -154,12 +170,15 @@ class CompanionController(private val project: Project) : Disposable {
                 PendingRow(
                     title = "${record.key.file.relativePath} › ${record.key.name}",
                     detail = record.error ?: "生成失败，可重试",
+                    file = record.key.file.relativePath,
                 )
             }
         val questionPending = ledger.pendingQuestions().map { state ->
             PendingRow(
                 title = "${state.key.file.relativePath} › ${state.key.name}",
                 detail = "ai？ ${state.question ?: "等你回答"}",
+                file = state.key.file.relativePath,
+                line = state.questionLine,
             )
         }
         val pending = questionPending + failedPending
@@ -254,7 +273,8 @@ class CompanionController(private val project: Project) : Disposable {
                     feedback.notifyInfo("Comment Companion", "需要你的回答：${result.text}")
                     feedback.showTransientHint(item.file, item.blockStartLine, "等你回答 · ai？", 4_000)
                 }
-                RoundResult.Stale, RoundResult.Cancelled -> Unit
+                RoundResult.Stale -> requeueStale(item)
+                RoundResult.Cancelled -> Unit
             }
             queue.finish(item)
         }
@@ -277,6 +297,15 @@ class CompanionController(private val project: Project) : Disposable {
                 attempts = 1,
             )
         }
+    }
+
+    private fun requeueStale(item: QueueItem) {
+        if (item.attempts >= 1) return
+        val text = workspace.readText(item.file) ?: return
+        val block = dev.commentcompanion.core.protocol.CommentProtocol.directives(text.lines()).firstOrNull {
+            it.directive != null && dev.commentcompanion.core.model.Hashing.sha256(it.directive!!.text) == item.instructionHash
+        } ?: return
+        queue.enqueue(item.file, block.startLine, item.instructionHash, System.currentTimeMillis(), item.attempts + 1)
     }
 
     private fun failureKey(file: FileKey, hash: String): String = "${file.relativePath}|$hash"

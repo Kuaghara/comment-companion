@@ -35,6 +35,9 @@
 | `ai？` 问题状态机（WAITING_ANSWER / 面板待办 / 扫描去重） | ✅ M3b 沙盒验证（注释落盘暂缓） |
 | `ai？` 注释写入文件（函数体后独立注释块） | ✅ 沙盒验证 |
 | 回答闭环：改指令 → 重新生成 → 清理 `ai？` | ✅ 沙盒验证（FAKE_ANSWER） |
+| 面板：待处理列表双击跳转 / 设置校验 | ✅ M3b |
+| 收尾后主动保存文档（磁盘与 Document 一致） | ✅ 沙盒验证 |
+| STALE 自动重排（行号漂移恢复） | ✅ 已实现 |
 | 崩溃 Journal（落笔前记录 + 启动回滚） | ✅ 已实现（未做杀进程验证） |
 | StartupActivity → ProjectActivity 迁移（去掉 deprecated 警告） | ✅ |
 | daemon-only 验证模式（GoLand 诊断，可切换） | ✅ 沙盒验证（VERIFY_FAILED → 修复 DONE） |
