@@ -266,7 +266,7 @@ class CompanionController(private val project: Project) : Disposable {
                     feedback.showTransientHint(item.file, item.blockStartLine, "写完了 · 第 1 轮", 3_000)
                 }
                 is RoundResult.Failed -> {
-                    feedback.notifyError("Comment Companion", "生成失败：${result.message}")
+                    feedback.notifyError("Comment Companion", humanizeFailure(result.message))
                     maybeRetry(item)
                 }
                 is RoundResult.Question -> {
@@ -297,6 +297,14 @@ class CompanionController(private val project: Project) : Disposable {
                 attempts = 1,
             )
         }
+    }
+
+    private fun humanizeFailure(message: String): String = when {
+        message.startsWith("AUTH") -> "DSH 鉴权失败：检查 ~/.dsh 的凭据/API Key"
+        message.startsWith("RATE_LIMIT") -> "触发限流/额度不足，请稍后重试"
+        message.startsWith("TIMEOUT") -> "模型请求超时，可稍后重试"
+        message.startsWith("NETWORK") -> "网络错误：无法连接模型端点"
+        else -> "生成失败：$message"
     }
 
     private fun requeueStale(item: QueueItem) {

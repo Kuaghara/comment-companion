@@ -7,7 +7,7 @@
 | 模块 | 状态 |
 |---|---|
 | Kotlin 离线工具链（JBR 25 + Kotlin 2.4.0 + JUnit 6） | ✅ 可用 |
-| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 78 个测试通过 |
+| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 79 个测试通过 |
 | 注释规范化（只改指令段、标记必然消失、防再次触发） | ✅ 已实现并测试 |
 | 空闲窗口 `IdleGate`（1–1.5s debounce 的纯逻辑） | ✅ 已实现并测试 |
 | 平台/Go PSI 的 Kotlin 互操作探针 | ✅ `scripts/check-platform.sh` 通过 |
@@ -38,6 +38,8 @@
 | 面板：待处理列表双击跳转 / 设置校验 | ✅ M3b |
 | 收尾后主动保存文档（磁盘与 Document 一致） | ✅ 沙盒验证 |
 | STALE 自动重排（行号漂移恢复） | ✅ 已实现 |
+| 模型建议 imports 自动补齐（PSI addImport） | ✅ 真实模型端到端验证 |
+| 签名守卫（拒绝改签名）+ 失败分类文案 | ✅ 已实现 |
 | 崩溃 Journal（落笔前记录 + 启动回滚） | ✅ 已实现（未做杀进程验证） |
 | StartupActivity → ProjectActivity 迁移（去掉 deprecated 警告） | ✅ |
 | daemon-only 验证模式（GoLand 诊断，可切换） | ✅ 沙盒验证（VERIFY_FAILED → 修复 DONE） |
@@ -133,6 +135,7 @@ comment-companion/
 - M3b 问题状态机：[m3b-question-flow.md](docs/evidence/m3b-question-flow.md)
 - daemon 验证模式：[daemon-verifier.md](docs/evidence/daemon-verifier.md)
 - 真实模型端到端：[real-model-e2e.md](docs/evidence/real-model-e2e.md)
+- imports/签名守卫：[imports-and-guards.md](docs/evidence/imports-and-guards.md)
 - DSH 配置来源：[dsh-config-source.md](docs/evidence/dsh-config-source.md)
 - GoLand 环境与可行性：[goland-2026.2-environment.md](docs/evidence/goland-2026.2-environment.md)
 - Aider `--watch-files` 源码审查：[aider-watch-files.md](docs/evidence/aider-watch-files.md)

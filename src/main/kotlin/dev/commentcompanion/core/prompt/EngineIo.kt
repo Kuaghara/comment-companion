@@ -19,11 +19,18 @@ data class EngineRequest(
     val timeoutMillis: Long,
 )
 
-/** 模型输出：新函数体 + 规范化注释（注释由模型产出）+ 可选反问。 */
+/** 模型建议新增的 import。 */
+data class EngineImport(
+    val path: String,
+    val alias: String? = null,
+)
+
+/** 模型输出：新函数体 + 规范化注释（注释由模型产出）+ 可选 imports/反问。 */
 data class EngineOutput(
     val body: String,
     val comment: List<String>,
     val question: String? = null,
+    val imports: List<EngineImport> = emptyList(),
 )
 
 enum class EngineFailure {

@@ -44,6 +44,17 @@ class ResponseParserTest {
     }
 
     @Test
+    fun `解析 imports`() {
+        val raw = """{"body":"{}","comment":["x"],"imports":[{"path":"strconv"},{"path":"fmt","alias":"f"}]}"""
+        val result = ResponseParser.parse(raw)
+        assertTrue(result is ResponseParser.Result.Ok)
+        val imports = (result as ResponseParser.Result.Ok).output.imports
+        assertEquals(2, imports.size)
+        assertEquals("strconv", imports[0].path)
+        assertEquals("f", imports[1].alias)
+    }
+
+    @Test
     fun `缺少 body 且没有问题则失败`() {
         val result = ResponseParser.parse("""{"comment":["x"]}""")
         assertTrue(result is ResponseParser.Result.Invalid)

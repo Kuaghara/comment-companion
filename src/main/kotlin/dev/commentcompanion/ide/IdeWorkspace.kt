@@ -107,7 +107,23 @@ class IdeWorkspace(private val project: Project) : WorkspacePort {
                 plan.ops.filterIsInstance<EditOp.AppendTrailingComment>().lastOrNull()?.let { op ->
                     document.insertString(plan.snapshot.bodyRange.last, "\n\n// ${op.text.trimEnd()}")
                 }
-                // imports：M2 实现（GoFile.addImport）
+                // imports：在文档编辑之后用 PSI 处理（会移动 offset，所以放最后）
+                val addImports = plan.ops.filterIsInstance<EditOp.AddImport>()
+                val removeImports = plan.ops.filterIsInstance<EditOp.RemoveImport>()
+                if (addImports.isNotEmpty() || removeImports.isNotEmpty()) {
+                    PsiDocumentManager.getInstance(project).commitDocument(document)
+                    val goFile = psi as? GoFile
+                    if (goFile != null) {
+                        addImports.forEach { spec ->
+                            if (goFile.imports.none { it.path == spec.path }) {
+                                goFile.addImport(spec.path, spec.alias)
+                            }
+                        }
+                        removeImports.forEach { spec ->
+                            goFile.imports.firstOrNull { it.path == spec.path }?.delete()
+                        }
+                    }
+                }
             }, psi)
             outcome = CommitOutcome.Applied(document.modificationStamp)
             PsiDocumentManager.getInstance(project).commitDocument(document)

@@ -125,6 +125,12 @@ class RoundExecutor(
                     if (modelComment.any { CommentProtocol.classify(it) != null }) {
                         return failed(item, original, "模型输出的注释仍包含 ai 标记，拒绝落笔")
                     }
+                    if (Regex("(?m)^\\s*func\\s").containsMatchIn(output.body)) {
+                        return failed(item, original, "模型试图修改函数签名；MVP 只允许改函数体")
+                    }
+                    val importOps = output.imports
+                        .filter { Regex("^[A-Za-z0-9_./-]+$").matches(it.path) }
+                        .map { EditOp.AddImport(it.path, it.alias) }
 
                     // 落笔 1：只写 body，保留 ai： 注释
                     val fresh = workspace.snapshot(item.file, item.blockStartLine)
@@ -134,7 +140,7 @@ class RoundExecutor(
                     val bodyPlan = EditPlan(
                         target = fresh.key,
                         snapshot = fresh,
-                        ops = listOf(EditOp.ReplaceBody(output.body)),
+                        ops = listOf(EditOp.ReplaceBody(output.body)) + importOps,
                         commandName = "Comment Companion: ${fresh.key.name}（body）",
                     )
                     when (val applied = workspace.commit(bodyPlan)) {

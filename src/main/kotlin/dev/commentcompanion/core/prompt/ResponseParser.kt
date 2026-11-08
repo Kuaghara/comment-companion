@@ -33,12 +33,31 @@ object ResponseParser {
             else -> emptyList()
         }
 
+        val imports = when (val importsElement = obj.get("imports")) {
+            null -> emptyList()
+            else -> when {
+                importsElement.isJsonNull -> emptyList()
+                importsElement.isJsonArray -> importsElement.asJsonArray.mapNotNull { item ->
+                    when {
+                        item.isJsonObject -> {
+                            val path = item.asJsonObject.get("path")?.takeIf { it.isJsonPrimitive }?.asString?.trim()
+                            if (path.isNullOrBlank()) null
+                            else EngineImport(path, item.asJsonObject.get("alias")?.takeIf { it.isJsonPrimitive }?.asString)
+                        }
+                        item.isJsonPrimitive -> item.asString.trim().takeIf { it.isNotBlank() }?.let { EngineImport(it) }
+                        else -> null
+                    }
+                }
+                else -> emptyList()
+            }
+        }
+
         if (body.isEmpty()) {
             return if (question != null) Result.Ok(EngineOutput(body = "", comment = emptyList(), question = question))
             else Result.Invalid("JSON 缺少 body")
         }
         if (comment.isEmpty() && question == null) return Result.Invalid("JSON 缺少 comment")
-        return Result.Ok(EngineOutput(body = body, comment = comment, question = question))
+        return Result.Ok(EngineOutput(body = body, comment = comment, question = question, imports = imports))
     }
 
     /** 优先直接解析；否则找第一个「看起来完整」的 JSON 对象（支持围栏）。 */
