@@ -15,6 +15,15 @@ sealed interface EditOp {
 
     /** import 删除（反向计划用）。 */
     data class RemoveImport(val path: String, val alias: String? = null) : EditOp
+
+    /** 在注释块末尾追加一行注释（不带 `//` 前缀，由适配器渲染）。用于写 `ai？`。 */
+    data class AppendCommentLine(val text: String) : EditOp
+
+    /** 在函数体之后追加一条独立注释（用于写 `ai？`，不干扰指令注释块）。 */
+    data class AppendTrailingComment(val text: String) : EditOp
+
+    /** 无操作（反向计划里用于 AppendCommentLine 等不可逆操作）。 */
+    data object NoOp : EditOp
 }
 
 /**
@@ -46,6 +55,9 @@ data class EditPlan(
             is EditOp.ReplaceComment -> EditOp.ReplaceComment(snapshot.commentRawLines)
             is EditOp.AddImport -> EditOp.RemoveImport(path, alias)
             is EditOp.RemoveImport -> EditOp.AddImport(path, alias)
+            is EditOp.AppendCommentLine -> EditOp.NoOp
+            is EditOp.AppendTrailingComment -> EditOp.NoOp
+            is EditOp.NoOp -> EditOp.NoOp
         }
     }
 }

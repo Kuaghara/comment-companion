@@ -1,47 +1,51 @@
-# M3b 进展：ai？问题状态机（半实现）
+# M3b：`ai？` 问题流 + 崩溃 Journal
 
 > 日期：2026-11-08
-> 状态：**问题状态已闭环；`ai？` 注释落盘暂缓**（原因见 ③）
 
 ## ① 已实现
 
-- `RoundStage.WAITING_ANSWER`（终态），迁移：`PARSING → WAITING_ANSWER`
-- `QuestionState.question` 增加问题原文（Gson 持久化）
-- `RoundExecutor.askQuestion()`：模型返回 question 时
-  - 记录 `RoundRecord(WAITING_ANSWER)`
-  - `QuestionState(PENDING, instructionHash, questionHash, question)`
-  - 面板/通知/Inlay 展示
-- 扫描去重：`ledger.pendingQuestionFor(file, instructionHash)` → 同一指令不再入队
-- 下一轮执行前 `QuestionResolver`：指令变了 → ANSWERED；问题消失 → MOOT
-- 面板「待你处理」合并两类：`ai？` 待回答 + 失败待重试
-- `RoundResult.Question` + controller 通知（「需要你的回答：…」+ 行尾 Inlay）
+**`ai？` 注释落盘（新增 `EditOp.AppendTrailingComment`）**
+- 问题写成**函数体之后的独立注释块**：`\n\n// ai？ <question>`
+- 与指令注释块完全隔离 → 不会再被「注释规范化」区间替换吃掉（之前那版会丢 `//` 前缀）
+- `askQuestion`：落笔 `ai？` → 记录 `WAITING_ANSWER` + `QuestionState(PENDING)`
+- 扫描去重：同 instructionHash 的 `ai：` 不再入队
+- 用户改指令 → 哈希变化 → `ANSWERED` → 重新入队
 
-## ② 沙盒验证
+**崩溃 Journal（`RoundJournalStore`）**
+- `.idea/comment-companion-journal.xml` 记录：file / blockStartLine / instructionHash / phase / originalBody
+- 落笔 body 前写 PENDING，body 成功写 APPLIED；DONE/FAILED/STALE/CANCELLED 清理
+- 项目启动时 `recoverJournal()`：APPLIED → 用当前快照回滚到 originalBody；定位失败 → 提示用 Local History
 
-`FAKE_QUESTION=1`（FakeEngine 首次返回 question）：
+## ② 沙盒验证（`FAKE_QUESTION=1`）
+
+事件：
 
 ```jsonl
 {"function":"Add","stage":"QUESTION","detail":"需要处理溢出的情况吗？"}
 {"function":"Mul","stage":"QUESTION","detail":"需要处理溢出的情况吗？"}
 ```
 
-- 文件**保持不变**（无重复写入 / 无 DONE 重跑）
-- 待处理不再入队（证明 pendingQuestionFor 生效）
+文件结果（正确）：
+
+```go
+func Add(a, b int) int {
+	return 0
+}
+
+// ai？ 需要处理溢出的情况吗？
+
+// Mul ...
+```
+
 - `Plugin to blame: Comment Companion` = 0
+- 不再出现 DONE 重跑
 
-## ③ 为什么暂不写 `ai？` 注释
+## ③ 已知限制
 
-尝试过把 `ai？` 追加到注释块（ReplaceComment），沙盒里发现两个问题：
+- 追加 `ai？` 后，同一文件里**已在队列中**的其他函数行号漂移，会先记一次 `STALE`；下一次扫描会以新行号重新入队（最终结果正确，但日志有噪音）
+- 回答后旧 `ai？` 注释暂不自动删除（记在 M4）
+- Journal 恢复路径已实现，未做「杀进程」级别的自动化验证
 
-1. 追加后行号漂移：同一文件里排队中的其他函数 `blockStartLine` 失效（已用「按 instructionHash 全文件找回」缓解）
-2. 随后成功回合的注释规范化用 PSI 区间替换时，会把 `// ai？` 行的 `//` 前缀吃掉（区间边界与 PSI 同步的边界情况）
+## ④ 测试
 
-结论：`ai？` 注释落盘需要和「注释块编辑」统一成一个原子操作（或改成独立的行插入 op），不宜在现有 ReplaceComment 上打补丁。已回退为「只记录状态 + 面板/通知/Inlay 展示」，文件零风险。
-
-## ④ 下一步
-
-1. 新增 `EditOp.AppendCommentLine`（基于行首/行尾插入，而非区间替换），用于写 `ai？`；规范化时保留它
-2. 回答后清理 `ai？` 行（或标记失效）
-3. RoundJournal 崩溃恢复
-4. daemon-only 验证模式
-5. 面板：待处理项点击跳转、历史展开
+78 个全绿（新增 `AppendTrailingComment` 反向计划用例、DSH 解析用例）。

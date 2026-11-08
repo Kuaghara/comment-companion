@@ -7,7 +7,7 @@
 | 模块 | 状态 |
 |---|---|
 | Kotlin 离线工具链（JBR 25 + Kotlin 2.4.0 + JUnit 6） | ✅ 可用 |
-| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 77 个测试通过 |
+| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 78 个测试通过 |
 | 注释规范化（只改指令段、标记必然消失、防再次触发） | ✅ 已实现并测试 |
 | 空闲窗口 `IdleGate`（1–1.5s debounce 的纯逻辑） | ✅ 已实现并测试 |
 | 平台/Go PSI 的 Kotlin 互操作探针 | ✅ `scripts/check-platform.sh` 通过 |
@@ -32,8 +32,9 @@
 | 状态栏 widget（队列数/暂停态） | ✅ M3a |
 | 账本持久化（`.idea/comment-companion-ledger.xml`，JSON 存储） | ✅ M3a |
 | `ai？` 问题状态机（WAITING_ANSWER / 面板待办 / 扫描去重） | ✅ M3b 沙盒验证（注释落盘暂缓） |
-| `ai？` 注释写入文件 | ⏳ 需要新增行插入 EditOp |
-| RoundJournal 崩溃恢复 / daemon 验证模式 | ⏳ M3b 剩余 |
+| `ai？` 注释写入文件（函数体后独立注释块） | ✅ 沙盒验证 |
+| 崩溃 Journal（落笔前记录 + 启动回滚） | ✅ 已实现（未做杀进程验证） |
+| daemon-only 验证模式 | ⏳ M3b 剩余 |
 
 ## M0 真机验证（2026-10-18，已通过）
 

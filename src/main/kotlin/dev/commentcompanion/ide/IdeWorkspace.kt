@@ -96,6 +96,14 @@ class IdeWorkspace(private val project: Project) : WorkspacePort {
                         rendered,
                     )
                 }
+                // 追加注释行（写 ai？）：插在注释块末尾，不影响已有区间
+                plan.ops.filterIsInstance<EditOp.AppendCommentLine>().lastOrNull()?.let { op ->
+                    document.insertString(plan.snapshot.commentBlockRange.last, "\n// ${op.text.trimEnd()}")
+                }
+                // 函数体之后追加独立注释块（ai？），与指令注释块完全隔离
+                plan.ops.filterIsInstance<EditOp.AppendTrailingComment>().lastOrNull()?.let { op ->
+                    document.insertString(plan.snapshot.bodyRange.last, "\n\n// ${op.text.trimEnd()}")
+                }
                 // imports：M2 实现（GoFile.addImport）
             }, psi)
             outcome = CommitOutcome.Applied(document.modificationStamp)

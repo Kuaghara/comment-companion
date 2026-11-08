@@ -21,6 +21,7 @@ import dev.commentcompanion.engine.EngineFactory
 import dev.commentcompanion.ide.CompanionSettings
 import dev.commentcompanion.ide.GoFileTracker
 import dev.commentcompanion.ide.IdeWorkspace
+import dev.commentcompanion.ide.RoundJournalStore
 import dev.commentcompanion.ide.RoundLedgerStore
 import dev.commentcompanion.ports.CommitOutcome
 import dev.commentcompanion.ports.VerifierPort
@@ -51,6 +52,7 @@ class RoundExecutor(
     private val tracker: GoFileTracker,
     private val verifier: VerifierPort,
     private val ledger: RoundLedgerStore,
+    private val journal: RoundJournalStore,
     private val queue: WorkQueue,
     private val isPaused: () -> Boolean,
 ) {
@@ -126,6 +128,7 @@ class RoundExecutor(
                     // 落笔 1：只写 body，保留 ai： 注释
                     val fresh = workspace.snapshot(item.file, item.blockStartLine)
                         ?: return stale(item)
+                    journal.begin(item, original)
                     queue.markStage(item.seq, RoundStage.APPLYING)
                     val bodyPlan = EditPlan(
                         target = fresh.key,
@@ -137,6 +140,7 @@ class RoundExecutor(
                         is CommitOutcome.Applied -> {
                             tracker.markOwnWrite(workspace.findVirtualFile(item.file)!!, applied.newStamp)
                             bodyApplied = true
+                            journal.markApplied()
                         }
                         is CommitOutcome.Stale -> return stale(item)
                         is CommitOutcome.Failed -> return failed(item, original, "落笔失败：${applied.reason}", rollback = false)
@@ -174,6 +178,7 @@ class RoundExecutor(
                             is CommitOutcome.Failed -> return failed(item, original, "规范化落笔失败：${applied.reason}")
                         }
                         record(original, item, RoundStage.DONE)
+                        journal.clear()
                         VerifyHooks.roundCompleted(original.key.name, "DONE", "attempts=$attempt verifier=${verifier.javaClass.simpleName} mode=${settings.snapshot().verificationMode}")
                         queue.markStage(item.seq, RoundStage.DONE)
                         return RoundResult.Done(original.key.name)
@@ -198,12 +203,17 @@ class RoundExecutor(
 
     /** 行号会因前面注释被改写而漂移：锚定失败时按 instructionHash 在文件里找回。 */
     private fun snapshotFor(item: QueueItem): FunctionSnapshot? {
-        workspace.snapshot(item.file, item.blockStartLine)?.let { return it }
-        val text = workspace.readText(item.file) ?: return null
-        val block = CommentProtocol.directives(text.lines()).firstOrNull {
-            it.directive != null && Hashing.sha256(it.directive!!.text) == item.instructionHash
-        } ?: return null
-        return workspace.snapshot(item.file, block.startLine)
+        // 先按指令哈希全文件找回（行号会因其他函数的注释被改写而漂移），再退回行号锚定
+        val text = workspace.readText(item.file)
+        if (text != null) {
+            val block = CommentProtocol.directives(text.lines()).firstOrNull {
+                it.directive != null && Hashing.sha256(it.directive!!.text) == item.instructionHash
+            }
+            if (block != null) {
+                workspace.snapshot(item.file, block.startLine)?.let { return it }
+            }
+        }
+        return workspace.snapshot(item.file, item.blockStartLine)
     }
 
     /**
@@ -213,6 +223,21 @@ class RoundExecutor(
      * 把 `ai？` 写成真实注释留到下一步（需要和注释规范化的区间玩法统一）。
      */
     private fun askQuestion(item: QueueItem, original: FunctionSnapshot, question: String): RoundResult {
+        val fresh = snapshotFor(item)
+            ?: return failed(item, original, "提问时函数定位失败", rollback = false)
+        val plan = EditPlan(
+            target = fresh.key,
+            snapshot = fresh,
+            ops = listOf(EditOp.AppendTrailingComment("ai？ $question")),
+            commandName = "Comment Companion: ${fresh.key.name}（提问）",
+        )
+        when (val outcome = workspace.commit(plan)) {
+            is CommitOutcome.Applied -> workspace.findVirtualFile(item.file)?.let {
+                tracker.markOwnWrite(it, outcome.newStamp)
+            }
+            is CommitOutcome.Stale -> return failed(item, original, "提问时文档已变化", rollback = false)
+            is CommitOutcome.Failed -> return failed(item, original, "提问落笔失败：${outcome.reason}", rollback = false)
+        }
         val record = record(original, item, RoundStage.WAITING_ANSWER)
         ledger.updateQuestion(
             QuestionState(
@@ -238,11 +263,12 @@ class RoundExecutor(
             val content = line.trimStart().removePrefix("//").trim()
             CommentProtocol.classify(content)?.first == MarkerType.QUESTION
         }
-        val status = QuestionResolver.resolve(
-            existing,
-            Hashing.sha256(original.instruction.text),
-            questionPresent,
-        )
+        // 简化：只按指令哈希判定；问题注释消失也不自动失效（M4 再细化）
+        val status = if (Hashing.sha256(original.instruction.text) != existing.instructionHash) {
+            QuestionStatus.ANSWERED
+        } else {
+            QuestionStatus.PENDING
+        }
         if (status != existing.status) ledger.updateQuestion(existing.copy(status = status))
     }
 
@@ -270,6 +296,7 @@ class RoundExecutor(
         rollback: Boolean = true,
     ): RoundResult {
         if (rollback) rollbackBody(item, original)
+        journal.clear()
         record(original, item, RoundStage.FAILED, message)
         VerifyHooks.roundCompleted(original.key.name, "FAILED", message)
         queue.markStage(item.seq, RoundStage.FAILED)
@@ -277,12 +304,14 @@ class RoundExecutor(
     }
 
     private fun stale(item: QueueItem): RoundResult {
+        journal.clear()
         queue.markStage(item.seq, RoundStage.STALE)
         VerifyHooks.roundCompleted(item.file.relativePath, "STALE", "block=${item.blockStartLine}")
         return RoundResult.Stale
     }
 
     private fun cancelled(item: QueueItem, rollback: Boolean = true): RoundResult {
+        journal.clear()
         queue.markStage(item.seq, RoundStage.CANCELLED)
         VerifyHooks.roundCompleted(item.file.relativePath, "CANCELLED", "")
         return RoundResult.Cancelled

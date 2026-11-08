@@ -7,6 +7,8 @@ import com.intellij.openapi.project.Project
 import dev.commentcompanion.core.model.FailureRetry
 import dev.commentcompanion.core.model.FileKey
 import dev.commentcompanion.core.model.RoundStage
+import dev.commentcompanion.core.model.EditOp
+import dev.commentcompanion.core.model.EditPlan
 import dev.commentcompanion.core.model.VerificationMode
 import dev.commentcompanion.core.queue.QueueItem
 import dev.commentcompanion.core.queue.WorkQueue
@@ -16,6 +18,7 @@ import dev.commentcompanion.ide.GoFileTracker
 import dev.commentcompanion.ide.IdeFeedback
 import dev.commentcompanion.ide.IdeWorkspace
 import dev.commentcompanion.ide.NoopVerifier
+import dev.commentcompanion.ide.RoundJournalStore
 import dev.commentcompanion.ide.RoundLedgerStore
 import dev.commentcompanion.ports.VerifierPort
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +39,7 @@ class CompanionController(private val project: Project) : Disposable {
 
     private val settings: CompanionSettings = service()
     private val ledger: RoundLedgerStore = project.service()
+    private val journal: RoundJournalStore = project.service()
     private val workspace = IdeWorkspace(project)
     private val tracker = GoFileTracker(project)
     private val feedback = IdeFeedback(project)
@@ -53,6 +57,7 @@ class CompanionController(private val project: Project) : Disposable {
         tracker = tracker,
         verifier = verifier,
         ledger = ledger,
+        journal = journal,
         queue = queue,
         isPaused = { paused },
     )
@@ -75,8 +80,46 @@ class CompanionController(private val project: Project) : Disposable {
 
     fun start() {
         tracker.start()
+        recoverJournal()
         scheduleScan()
         scope.launch { workerLoop() }
+    }
+
+    /** 崩溃恢复：上次 body 已落笔但没走完 → 回滚到原 body。 */
+    private fun recoverJournal() {
+        val entry = journal.pending() ?: return
+        scope.launch(Dispatchers.IO) {
+            try {
+                if (entry.phase != "APPLIED") {
+                    journal.clear()
+                    return@launch
+                }
+                val snapshot = workspace.snapshot(FileKey(entry.file), entry.blockStartLine)
+                if (snapshot == null) {
+                    feedback.notifyError("Comment Companion", "检测到未完成修改，但定位失败；请用 Local History 恢复 ${entry.file}")
+                    journal.clear()
+                    return@launch
+                }
+                val plan = EditPlan(
+                    target = snapshot.key,
+                    snapshot = snapshot,
+                    ops = listOf(EditOp.ReplaceBody(entry.originalBody)),
+                    commandName = "Comment Companion: 崩溃恢复",
+                )
+                when (workspace.commit(plan)) {
+                    is dev.commentcompanion.ports.CommitOutcome.Applied -> {
+                        feedback.notifyInfo("Comment Companion", "已恢复上次中断的修改：${snapshot.key.name}")
+                        journal.clear()
+                    }
+                    else -> {
+                        feedback.notifyError("Comment Companion", "自动恢复失败，请用 Local History 检查 ${entry.file}")
+                        journal.clear()
+                    }
+                }
+            } catch (_: Throwable) {
+                journal.clear()
+            }
+        }
     }
 
     fun pause() {

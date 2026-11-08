@@ -52,6 +52,20 @@ class EditPlanTest {
     }
 
     @Test
+    fun `追加类操作的反向计划是 NoOp`() {
+        val plan = EditPlan(
+            target = key,
+            snapshot = snapshot,
+            ops = listOf(
+                EditOp.AppendCommentLine("ai？ 需要处理空输入吗？"),
+                EditOp.AppendTrailingComment("ai？ 需要处理空输入吗？"),
+            ),
+            commandName = "question",
+        )
+        assertEquals(listOf(EditOp.NoOp, EditOp.NoOp), plan.invert().ops)
+    }
+
+    @Test
     fun `快照前置条件包含版本与两个哈希`() {
         val precondition = snapshot.precondition()
         assertEquals(42L, precondition.documentStamp)
