@@ -7,7 +7,7 @@
 | 模块 | 状态 |
 |---|---|
 | Kotlin 离线工具链（JBR 25 + Kotlin 2.4.0 + JUnit 6） | ✅ 可用 |
-| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 72 个测试通过 |
+| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 77 个测试通过 |
 | 注释规范化（只改指令段、标记必然消失、防再次触发） | ✅ 已实现并测试 |
 | 空闲窗口 `IdleGate`（1–1.5s debounce 的纯逻辑） | ✅ 已实现并测试 |
 | 平台/Go PSI 的 Kotlin 互操作探针 | ✅ `scripts/check-platform.sh` 通过 |
@@ -22,6 +22,7 @@
 | PSI 锚定（注释 → 上方函数，允许 0–1 空行） | ✅ M1b 沙盒验证 |
 | 串行队列 + FakeEngine 端到端（生成→落笔→规范化→记账） | ✅ M1b 沙盒验证 |
 | 三种引擎协议（OpenAI Chat Completions / OpenAI Responses / Anthropic Messages） | ✅ M2a（HTTP 适配 + prompt/response 编解码） |
+| **从 DSH 读模型配置（默认）**：provider/model/协议/BaseURL/Key | ✅ 沙盒验证（step / step-5-preview / anthropic） |
 | 设置持久化（`comment-companion.xml`）+ API Key（PasswordSafe） | ✅ M2a |
 | `go build ./...` 验证 + baseline 差集 | ✅ M2b 沙盒验证 |
 | 修复循环（≤5 轮/60s，新错误回填） | ✅ M2b 沙盒验证（attempts=2 修复成功） |
@@ -123,6 +124,7 @@ comment-companion/
 - M2b 验证/修复验证：[m2b-verification-repair.md](docs/evidence/m2b-verification-repair.md)
 - M3a 面板/状态栏验证：[m3a-panel-verification.md](docs/evidence/m3a-panel-verification.md)
 - M3b 问题状态机：[m3b-question-flow.md](docs/evidence/m3b-question-flow.md)
+- DSH 配置来源：[dsh-config-source.md](docs/evidence/dsh-config-source.md)
 - GoLand 环境与可行性：[goland-2026.2-environment.md](docs/evidence/goland-2026.2-environment.md)
 - Aider `--watch-files` 源码审查：[aider-watch-files.md](docs/evidence/aider-watch-files.md)
 - pi-watcher 源码审查：[pi-watcher.md](docs/evidence/pi-watcher.md)

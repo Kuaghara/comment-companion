@@ -13,6 +13,7 @@ import dev.commentcompanion.core.model.VerificationMode
 import dev.commentcompanion.ports.CompanionSettingsSnapshot
 import dev.commentcompanion.ports.EngineConfig
 import dev.commentcompanion.ports.EngineProtocol
+import dev.commentcompanion.ports.EngineSource
 import dev.commentcompanion.ports.SettingsPort
 
 /**
@@ -29,6 +30,7 @@ class CompanionSettings : PersistentStateComponent<CompanionSettings.State>, Set
         var scanIntervalMillis: Long = 2_000
         var failureRetry: String = FailureRetry.AUTO_ONCE.name
         var verificationMode: String = VerificationMode.GO_BUILD.name
+        var engineSource: String = EngineSource.DSH.name
         var protocol: String = EngineProtocol.OPENAI_CHAT_COMPLETIONS.name
         var baseUrl: String = EngineProtocol.OPENAI_CHAT_COMPLETIONS.defaultBaseUrl
         var model: String = ""
@@ -45,6 +47,13 @@ class CompanionSettings : PersistentStateComponent<CompanionSettings.State>, Set
 
     override fun loadState(state: State) {
         this.state = state
+    }
+
+    fun engineSource(): EngineSource =
+        runCatching { EngineSource.valueOf(state.engineSource) }.getOrDefault(EngineSource.DSH)
+
+    fun setEngineSource(value: EngineSource) {
+        state.engineSource = value.name
     }
 
     fun protocol(): EngineProtocol =
@@ -65,6 +74,7 @@ class CompanionSettings : PersistentStateComponent<CompanionSettings.State>, Set
         verificationMode = runCatching { VerificationMode.valueOf(state.verificationMode) }
             .getOrDefault(VerificationMode.GO_BUILD),
         trust = TrustPolicy(),
+        engineSource = engineSource(),
         protocol = protocol(),
         engine = EngineConfig(
             baseUrl = state.baseUrl.ifBlank { protocol().defaultBaseUrl },
@@ -90,6 +100,7 @@ class CompanionSettings : PersistentStateComponent<CompanionSettings.State>, Set
         state.scanIntervalMillis = next.scanIntervalMillis
         state.failureRetry = next.failureRetry.name
         state.verificationMode = next.verificationMode.name
+        state.engineSource = next.engineSource.name
         state.protocol = next.protocol.name
         state.baseUrl = next.engine.baseUrl
         state.model = next.engine.model

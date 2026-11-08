@@ -7,6 +7,7 @@ import dev.commentcompanion.app.PanelSnapshot
 import dev.commentcompanion.core.model.FailureRetry
 import dev.commentcompanion.core.model.VerificationMode
 import dev.commentcompanion.ports.EngineProtocol
+import dev.commentcompanion.ports.EngineSource
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
@@ -234,6 +235,7 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
     // ---------------- Settings ----------------
 
     private inner class SettingsPage : JPanel() {
+        private val source = javax.swing.JComboBox(EngineSource.entries.toTypedArray())
         private val protocol = javax.swing.JComboBox(EngineProtocol.entries.toTypedArray())
         private val baseUrl = JTextField(28)
         private val model = JTextField(20)
@@ -259,6 +261,7 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
                 form.add(component, gbc)
                 row++
             }
+            addRow("引擎来源", source)
             addRow("协议", protocol)
             addRow("Base URL", baseUrl)
             addRow("模型", model)
@@ -282,6 +285,7 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
 
         private fun loadFromSettings() {
             val snapshot = settings.snapshot()
+            source.selectedItem = snapshot.engineSource
             protocol.selectedItem = snapshot.protocol
             baseUrl.text = snapshot.engine.baseUrl
             model.text = snapshot.engine.model
@@ -293,8 +297,11 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
 
         private fun save() {
             val p = protocol.selectedItem as? EngineProtocol ?: EngineProtocol.OPENAI_CHAT_COMPLETIONS
+            val engineSource = source.selectedItem as? EngineSource ?: EngineSource.DSH
+            settings.setEngineSource(engineSource)
             settings.update { current ->
                 current.copy(
+                    engineSource = engineSource,
                     protocol = p,
                     engine = current.engine.copy(
                         baseUrl = baseUrl.text.trim(),

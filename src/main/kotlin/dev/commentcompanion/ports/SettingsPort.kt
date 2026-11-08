@@ -22,6 +22,7 @@ data class CompanionSettingsSnapshot(
     /** 验证方式：go build 还是只用 daemon（用户要求做成开关，默认 go build）。 */
     val verificationMode: VerificationMode = VerificationMode.GO_BUILD,
     val trust: TrustPolicy = TrustPolicy(),
+    val engineSource: EngineSource = EngineSource.DSH,
     val protocol: EngineProtocol = EngineProtocol.OPENAI_CHAT_COMPLETIONS,
     val engine: EngineConfig = EngineConfig(),
     val apiKeyConfigured: Boolean = false,

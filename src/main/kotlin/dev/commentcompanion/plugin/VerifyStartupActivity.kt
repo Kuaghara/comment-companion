@@ -38,6 +38,18 @@ class VerifyStartupActivity : StartupActivity {
             val entries = LinkedHashMap<String, String>()
             try {
                 entries["plugin"] = quote("loaded")
+                runCatching {
+                    val dsh = dev.commentcompanion.ide.DshConfig.resolve()
+                    if (dsh == null) {
+                        entries["dsh"] = quote("unresolved")
+                    } else {
+                        entries["dshProvider"] = quote(dsh.provider)
+                        entries["dshModel"] = quote(dsh.model)
+                        entries["dshProtocol"] = quote(dsh.protocol.name)
+                        entries["dshBaseUrl"] = quote(dsh.baseUrl)
+                        entries["dshKeyConfigured"] = (dsh.apiKey != null).toString()
+                    }
+                }.onFailure { entries["dsh"] = quote("error: ${it.message}") }
                 entries["project"] = quote(project.name)
                 entries["projectPath"] = quote(project.basePath ?: "")
 

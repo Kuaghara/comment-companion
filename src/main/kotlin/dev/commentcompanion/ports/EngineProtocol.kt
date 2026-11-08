@@ -6,3 +6,6 @@ enum class EngineProtocol(val label: String, val defaultBaseUrl: String) {
     OPENAI_RESPONSES("OpenAI Responses", "https://api.openai.com/v1"),
     ANTHROPIC_MESSAGES("Anthropic Messages", "https://api.anthropic.com"),
 }
+
+/** 引擎配置来源：DSH（默认，从 DeepSeek Harness 读）或插件自己的设置。 */
+enum class EngineSource { DSH, PLUGIN }
