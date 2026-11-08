@@ -2,6 +2,7 @@ package dev.commentcompanion.ports
 
 import dev.commentcompanion.core.model.EditPlan
 import dev.commentcompanion.core.model.FileKey
+import dev.commentcompanion.core.model.FunctionKey
 import dev.commentcompanion.core.model.FunctionSnapshot
 
 /** 文档快照（文本 + 版本）。 */
@@ -44,4 +45,7 @@ interface WorkspacePort {
 
     /** 在内存中解析候选代码，用于落笔前语法校验。 */
     fun previewParse(file: FileKey, candidateText: String): PreviewResult
+
+    /** 清理函数体之后的 `ai？` 注释（问题已回答/失效后调用）。 */
+    fun cleanupTrailingQuestion(file: FileKey, key: FunctionKey): Boolean
 }

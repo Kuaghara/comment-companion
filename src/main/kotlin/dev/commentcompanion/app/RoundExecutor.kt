@@ -179,6 +179,7 @@ class RoundExecutor(
                         }
                         record(original, item, RoundStage.DONE)
                         journal.clear()
+                        runCatching { workspace.cleanupTrailingQuestion(item.file, original.key) }
                         VerifyHooks.roundCompleted(original.key.name, "DONE", "attempts=$attempt verifier=${verifier.javaClass.simpleName} mode=${settings.snapshot().verificationMode}")
                         queue.markStage(item.seq, RoundStage.DONE)
                         return RoundResult.Done(original.key.name)
@@ -251,6 +252,27 @@ class RoundExecutor(
             ),
         )
         VerifyHooks.roundCompleted(original.key.name, "QUESTION", question.take(120))
+        // 沙盒自动化：模拟用户改指令（触发 ANSWERED → 下一轮 DONE → 清理 ai？）
+        if (System.getProperty("commentcompanion.verifyAnswerAfterQuestion") == "true") {
+            snapshotFor(item)?.let { fresh ->
+                val plan = EditPlan(
+                    target = fresh.key,
+                    snapshot = fresh,
+                    ops = listOf(
+                        EditOp.ReplaceComment(
+                            fresh.descriptionLines + "ai：${fresh.instruction.text}（已答复）",
+                        ),
+                    ),
+                    commandName = "Comment Companion: verify answer",
+                )
+                when (val outcome = workspace.commit(plan)) {
+                    is CommitOutcome.Applied -> workspace.findVirtualFile(item.file)?.let {
+                        tracker.markOwnWrite(it, outcome.newStamp)
+                    }
+                    else -> Unit
+                }
+            }
+        }
         queue.markStage(item.seq, RoundStage.WAITING_ANSWER)
         return RoundResult.Question(question)
     }

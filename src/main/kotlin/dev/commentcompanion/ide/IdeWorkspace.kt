@@ -8,7 +8,9 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiErrorElement
+import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiManager
 import com.intellij.openapi.util.Computable
@@ -17,6 +19,7 @@ import com.goide.psi.GoFile
 import dev.commentcompanion.core.model.EditOp
 import dev.commentcompanion.core.model.EditPlan
 import dev.commentcompanion.core.model.FileKey
+import dev.commentcompanion.core.model.FunctionKey
 import dev.commentcompanion.core.model.FunctionSnapshot
 import dev.commentcompanion.ports.CommitOutcome
 import dev.commentcompanion.ports.DocumentSnapshot
@@ -121,6 +124,30 @@ class IdeWorkspace(private val project: Project) : WorkspacePort {
             .map { "line ${preview.text.substring(0, it.textRange.startOffset).count { c -> c == '\n' } + 1}: ${it.errorDescription}" }
             .take(5)
         PreviewResult(errors.isNotEmpty(), errors)
+    }
+
+    override fun cleanupTrailingQuestion(file: FileKey, key: FunctionKey): Boolean {
+        val vf = findVirtualFile(file) ?: return false
+        var removed = false
+        ApplicationManager.getApplication().invokeAndWait {
+            runCatching {
+                val psi = PsiManager.getInstance(project).findFile(vf) as? GoFile ?: return@invokeAndWait
+                val target = psi.functions.firstOrNull { it.name == key.name }
+                    ?: psi.methods.firstOrNull { it.name == key.name }
+                    ?: return@invokeAndWait
+                var sibling = target.nextSibling
+                while (sibling is PsiWhiteSpace) sibling = sibling.nextSibling
+                if (sibling is PsiComment &&
+                    sibling.text.trimStart().removePrefix("//").trimStart().startsWith("ai？")
+                ) {
+                    WriteCommandAction.runWriteCommandAction(project, "Comment Companion: 清理 ai？", null, {
+                        sibling.delete()
+                    })
+                    removed = true
+                }
+            }
+        }
+        return removed
     }
 
     fun toFileKey(file: VirtualFile): FileKey? {
