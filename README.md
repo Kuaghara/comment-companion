@@ -18,7 +18,12 @@
 | 串行工作队列（坐标+指纹、去重、空闲判定） | ✅ 已实现并测试 |
 | 端口接口（Workspace/Feedback/Engine/Verifier/Settings/Ledger/Scheduler） | ✅ 已定义 |
 | 架构守则检查（core/ports 不得依赖平台/上层） | ✅ 已接入 `scripts/test.sh` |
-| 扫描器（2s 空闲审查）/ 编排器 / 状态栏 / 侧边栏 / 模型调用 | ⏳ M1b–M3 |
+| 2 秒空闲扫描（dirty 追踪 + 只在空闲时审查） | ✅ M1b 沙盒验证 |
+| PSI 锚定（注释 → 上方函数，允许 0–1 空行） | ✅ M1b 沙盒验证 |
+| 串行队列 + FakeEngine 端到端（生成→落笔→规范化→记账） | ✅ M1b 沙盒验证 |
+| 真实模型引擎（OpenAI Chat/Responses、Anthropic） | ⏳ M2 |
+| `go build` 验证 + 修复循环 | ⏳ M2 |
+| 侧边窗口（底部三页导航）/ 设置页 / 状态栏 | ⏳ M3 |
 
 ## M0 真机验证（2026-10-18，已通过）
 
@@ -105,6 +110,7 @@ comment-companion/
 
 - 设计：[comment-companion-mvp-design.md](docs/comment-companion-mvp-design.md)
 - 结构（v2 已对齐）：[structure-design.md](docs/architecture/structure-design.md)
+- M1b 端到端验证：[m1b-pipeline-verification.md](docs/evidence/m1b-pipeline-verification.md)
 - GoLand 环境与可行性：[goland-2026.2-environment.md](docs/evidence/goland-2026.2-environment.md)
 - Aider `--watch-files` 源码审查：[aider-watch-files.md](docs/evidence/aider-watch-files.md)
 - pi-watcher 源码审查：[pi-watcher.md](docs/evidence/pi-watcher.md)

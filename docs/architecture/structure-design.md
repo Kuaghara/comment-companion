@@ -22,6 +22,13 @@
 | D11 | `ai？` 等待回答 | 指令未变时不再入队；改指令 → ANSWERED，问题注释消失 → MOOT |
 | D12 | 侧边窗口 | 下一轮对话专门讨论；先预留 `FeedbackPort.updateStatus` 与面板数据源 |
 | D13 | 术语 | 不用 "commit"；写文档统一叫「落笔」（`WriteCommandAction`），与 git 无关 |
+| D14 | 待处理展开 | 2 号位点击后**跳转到「详细情况」页**并在该页展开「待你处理」，不在仪表盘内联 |
+| D15 | 协议支持 | OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 三种；Base URL 可配以兼容中转网关 |
+| D16 | 面板外壳 | 底部三格导航：仪表盘 / 详细情况 / 设置；选中页持久化 |
+| D17 | 仪表盘 | 中央圆形舞台（运行/暂停，Ayane 化时替换为角色动效）+ 1 号位状态 + 2 号位待办（仅最新一条） |
+| D18 | 暂停语义 | 运行中点击 = 暂停 + 取消当前回合；已落笔则反向 plan 回滚到快照 |
+| D19 | 最近记录 | 默认半展开 3 条，最多展开 20 条 |
+| D20 | 面板设置 | 配置全部在「设置」页（协议/Key/BaseURL/模型/行为/验证/信任/界面/维护） |
 
 ---
 
@@ -167,11 +174,65 @@ QUEUED → SNAPSHOT（读文档/锚定/版本哈希）→ GENERATING（EnginePor
 | `LedgerPort` | 账本 | `recordFor(key, hash)`、`record`、`question`、`recent` |
 | `SchedulerPort` | 定时 | `schedule(key, delay, action)`、`cancel` |
 
-设置快照已包含：扫描间隔（2000ms）、失败重试（AUTO_ONCE）、验证方式（GO_BUILD / DAEMON_ONLY，可关）、信任策略、引擎配置。
+设置快照已包含：扫描间隔（2000ms）、失败重试（AUTO_ONCE）、验证方式（GO_BUILD / DAEMON_ONLY，可关）、信任策略、引擎配置（协议/BaseURL/模型/Key）。
 
 ---
 
-## 7. 线程契约
+## 7. 侧边窗口（面板）设计
+
+单个 Tool Window，底部三格导航：**仪表盘 / 详细情况 / 设置**；选中页按项目持久化。
+
+### 7.1 仪表盘
+
+- 中央「舞台区」：圆形运行/暂停按钮。后期 Ayane 化时整块替换为角色/动效，数据槽位不变。
+- 按钮语义（D18）：
+  - 运行中 → ⏸：暂停并**取消当前回合**；已落笔（body/注释）则反向 plan 回滚到快照，记 CANCELLED；
+  - 空闲/暂停 → ▶：恢复扫描与取任务；
+  - 未配置模型 → 灰色 ▶，点击跳设置页。
+- **1 号位**（按钮下方小间隔）：两行文字——`statusText`（运行中/空闲/已暂停/未配置/正在停止）+ `secondaryText`（队列数 · 当前文件›函数）。
+- **2 号位**（较大间隔）：`待你处理 N` + 最新一条摘要（文件:行 / 失败原因）。无内容显示轻量「无待处理」。
+- 2 号位点击 → **跳转「详细情况」页并展开「待你处理」**（D14）。
+
+### 7.2 详细情况
+
+自上而下四段：
+
+1. **当前任务**：文件›函数、RoundStage 步骤条（快照/生成/验证/修复/规范化）、第几轮、耗时、token、[取消]。
+2. **待你处理**：`ai？` 待回答 + 失败待重试合并列表（按最新排序）；操作：跳转 / 重试 / 打开。
+3. **任务队列**：文件、函数、指令摘要、等待时长、状态、[取消]；双击跳转。
+4. **最近记录**：默认半展开 3 条（D19），展开最多 20 条；操作：打开 / 重试。
+
+### 7.3 设置
+
+| 分组 | 内容 |
+|---|---|
+| AI | 协议（OpenAI Chat Completions / OpenAI Responses / Anthropic Messages）、Base URL、API Key（PasswordSafe）、模型名、temperature、max_tokens、timeout |
+| 行为 | 扫描周期（2000ms）、失败自动重试（1 次）、修复轮数上限（5）/总时长（60s）、只在空闲时扫描（固定） |
+| 验证 | `go build ./...` 开关（默认开）、build 超时 |
+| 信任 | SAFE / BALANCED / TRUSTED；允许改 import / 签名 |
+| 界面 | 默认页、失败/待处理时是否自动切页、Inlay 提示时长 |
+| 维护 | 打开日志目录、清空账本、启用/禁用 |
+
+设置即改即存（`PersistentStateComponent`），不设 Apply 按钮。
+
+### 7.4 数据与刷新
+
+```kotlin
+data class PanelSnapshot(
+    val dashboard: DashboardModel,   // statusText, secondaryText, actionState
+    val pending: List<PendingItem>,  // ai？待回答 + 失败待重试
+    val activeRound: ActiveRoundModel?,
+    val queue: List<QueueItemView>,
+    val recent: List<RoundHistoryView>,
+    val settings: CompanionSettingsSnapshot,
+)
+```
+
+controller 状态变化 → 节流约 300ms → `invokeLater` 刷新；Panel 只持有快照，不持有 queue/ledger。
+
+---
+
+## 8. 线程契约
 
 | 阶段 | 线程 | 备注 |
 |---|---|---|
@@ -185,7 +246,7 @@ QUEUED → SNAPSHOT（读文档/锚定/版本哈希）→ GENERATING（EnginePor
 
 ---
 
-## 8. 持久化
+## 9. 持久化
 
 - `CompanionSettings`：application 级 `PersistentStateComponent`；API key 存 `PasswordSafe`。
 - `RoundLedgerStore`：project 级（`.idea`）；key = `FunctionKey.ledgerKey()`；存 RoundRecord + QuestionState + attempts。
@@ -193,7 +254,7 @@ QUEUED → SNAPSHOT（读文档/锚定/版本哈希）→ GENERATING（EnginePor
 
 ---
 
-## 9. 里程碑
+## 10. 里程碑
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
@@ -201,13 +262,13 @@ QUEUED → SNAPSHOT（读文档/锚定/版本哈希）→ GENERATING（EnginePor
 | M1a | core + ports + 架构检查 | ✅ 已完成（56 测试） |
 | M1b | app 编排 + ide 适配（扫描/锚定/队列/状态栏） | ⏳ 下一步 |
 | M2 | 引擎 + 落笔 + go build 验证 + 修复循环 | ⏳ |
-| M3 | `ai？` 问题流 + 侧边窗口 + 设置页 | ⏳（面板下轮讨论） |
+| M3 | `ai？` 问题流 + 侧边窗口（三页导航）+ 设置页 | ⏳ |
 | M4 | 跨文件/签名 + 信任级别 | ⏳ |
 | M5 | Ayane 接入（EnginePort 替换 + contract 映射） | ⏳ |
 
 ---
 
-## 10. 风险
+## 11. 风险
 
 | # | 风险 | 缓解 |
 |---|---|---|

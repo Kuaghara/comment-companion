@@ -20,6 +20,8 @@
     <notificationGroup id="CommentCompanion" displayType="BALLOON"/>
     <!-- 只在设置了 -Dcommentcompanion.verifyTo 时动作，供沙盒验证脚本使用 -->
     <postStartupActivity implementation="dev.commentcompanion.plugin.VerifyStartupActivity"/>
+    <!-- M1b：项目打开后启动扫描与串行 worker -->
+    <postStartupActivity implementation="dev.commentcompanion.ide.CompanionBootstrap"/>
   </extensions>
 
   <actions>

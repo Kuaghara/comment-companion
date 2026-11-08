@@ -73,7 +73,7 @@ cat > "$CONFIG/options/trusted-paths.xml" <<EOF
 </application>
 EOF
 
-rm -f "$SANDBOX/verify.json"
+rm -f "$SANDBOX/verify.json" "$SANDBOX/verify-rounds.jsonl"
 
 VMOPTS="$SANDBOX/ide.vmoptions"
 {
@@ -83,6 +83,7 @@ VMOPTS="$SANDBOX/ide.vmoptions"
   echo "-Didea.plugins.path=$PLUGINS"
   echo "-Didea.log.path=$LOG"
   echo "-Dcommentcompanion.verifyTo=$SANDBOX/verify.json"
+  echo "-Dcommentcompanion.verifyRounds=$SANDBOX/verify-rounds.jsonl"
   if [[ "${DEBUG_PORT:-}" != "" ]]; then
     echo "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:$DEBUG_PORT"
   fi
