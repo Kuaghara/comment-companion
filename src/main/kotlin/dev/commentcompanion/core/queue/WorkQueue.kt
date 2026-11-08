@@ -40,6 +40,7 @@ class WorkQueue {
     private val pending = ArrayList<QueueItem>()
     private var activeItem: QueueItem? = null
 
+    @Synchronized
     fun enqueue(
         file: FileKey,
         blockStartLine: Int,
@@ -80,6 +81,7 @@ class WorkQueue {
     }
 
     /** 取出队首并标记为 active（SNAPSHOT 阶段）；队列已有 active 时返回 null。 */
+    @Synchronized
     fun next(): QueueItem? {
         if (activeItem != null) return null
         val head = pending.minByOrNull { it.seq } ?: return null
@@ -90,6 +92,7 @@ class WorkQueue {
     }
 
     /** 推进活动项阶段。 */
+    @Synchronized
     fun markStage(seq: Long, stage: RoundStage): QueueItem? {
         val current = activeItem
         if (current != null && current.seq == seq) {
@@ -105,26 +108,33 @@ class WorkQueue {
     }
 
     /** 本轮结束（成功或失败）；释放 active，允许取下一个。 */
+    @Synchronized
     fun finish(item: QueueItem) {
         if (activeItem?.seq == item.seq) activeItem = null
     }
 
+    @Synchronized
     fun cancelFile(file: FileKey) {
         pending.removeAll { it.file == file }
         if (activeItem?.file == file) activeItem = null
     }
 
+    @Synchronized
     fun cancelAll() {
         pending.clear()
         activeItem = null
     }
 
+    @Synchronized
     fun pendingItems(): List<QueueItem> = pending.sortedBy { it.seq }
 
+    @Synchronized
     fun active(): QueueItem? = activeItem
 
     /** 空闲 = 没有任何排队项，也没有正在执行的回合。扫描只允许在此时进行。 */
+    @Synchronized
     fun isIdle(): Boolean = pending.isEmpty() && activeItem == null
 
+    @Synchronized
     fun pendingCount(): Int = pending.size + if (activeItem != null) 1 else 0
 }

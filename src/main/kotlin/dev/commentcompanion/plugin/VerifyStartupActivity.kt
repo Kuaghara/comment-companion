@@ -105,6 +105,12 @@ class VerifyStartupActivity : StartupActivity {
                 val editors = FileEditorManager.getInstance(project).openFile(file, true)
                 val editor: Editor? = editors.filterIsInstance<TextEditor>().firstOrNull()?.editor
                 entries["editor"] = quote(if (editor == null) "no-editor" else "opened")
+                // 打开侧边窗口，验证面板能构造（异常会写进日志）
+                runCatching {
+                    com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
+                        .getToolWindow("Comment Companion")?.show()
+                    entries["toolWindow"] = quote("shown")
+                }.onFailure { entries["toolWindow"] = quote("error: ${it.message}") }
                 if (editor != null) {
                     WriteCommandAction.runWriteCommandAction(project, "CC verify inlay", null, {
                         val inlay = editor.inlayModel.addAfterLineEndElement(

@@ -22,6 +22,10 @@
     <postStartupActivity implementation="dev.commentcompanion.plugin.VerifyStartupActivity"/>
     <!-- M1b：项目打开后启动扫描与串行 worker -->
     <postStartupActivity implementation="dev.commentcompanion.ide.CompanionBootstrap"/>
+    <toolWindow id="Comment Companion" anchor="right"
+                factoryClass="dev.commentcompanion.ide.CompanionToolWindowFactory"/>
+    <statusBarWidgetFactory id="CommentCompanionStatus"
+                            implementation="dev.commentcompanion.ide.CompanionStatusBarWidgetFactory"/>
   </extensions>
 
   <actions>

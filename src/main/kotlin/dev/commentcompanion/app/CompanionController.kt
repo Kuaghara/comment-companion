@@ -6,6 +6,7 @@ import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import dev.commentcompanion.core.model.FailureRetry
 import dev.commentcompanion.core.model.FileKey
+import dev.commentcompanion.core.model.RoundStage
 import dev.commentcompanion.core.model.VerificationMode
 import dev.commentcompanion.core.queue.QueueItem
 import dev.commentcompanion.core.queue.WorkQueue
@@ -93,7 +94,79 @@ class CompanionController(private val project: Project) : Disposable {
 
     fun isPaused(): Boolean = paused
 
+    fun settings(): CompanionSettings = settings
+
     fun queueSize(): Int = queue.pendingCount()
+
+    /** 面板只读快照（在 EDT 调用；内部结构已加锁）。 */
+    fun panelSnapshot(): PanelSnapshot {
+        val snapshot = settings.snapshot()
+        val active = queue.active()
+        val queued = queue.pendingItems()
+        val recent = ledger.recent(20)
+        val pending = recent
+            .filter { it.stage == RoundStage.FAILED }
+            .distinctBy { it.key.ledgerKey() + it.instructionHash }
+            .map { record ->
+                PendingRow(
+                    title = "${record.key.file.relativePath} › ${record.key.name}",
+                    detail = record.error ?: "生成失败，可重试",
+                )
+            }
+
+        val statusText = when {
+            paused -> "已暂停"
+            active != null -> "正在写 ${active.file.relativePath} › ${functionName(active.file.relativePath)}"
+            queued.isNotEmpty() -> "等待处理"
+            else -> "空闲"
+        }
+        val secondaryText = buildString {
+            append("队列 ")
+            append(queue.pendingCount())
+            active?.let {
+                append(" · 当前：")
+                append(it.file.relativePath)
+                append("（")
+                append(it.stage.name.lowercase())
+                append("）")
+            }
+        }
+        return PanelSnapshot(
+            statusText = statusText,
+            secondaryText = secondaryText,
+            running = active != null,
+            paused = paused,
+            pending = pending,
+            active = active?.let {
+                ActiveRow(
+                    file = it.file.relativePath,
+                    function = functionName(it.file.relativePath),
+                    stage = it.stage,
+                    attempt = it.attempts + 1,
+                )
+            },
+            queue = queued.map {
+                QueueRow(
+                    file = it.file.relativePath,
+                    function = functionName(it.file.relativePath),
+                    instructionHash = it.instructionHash.take(8),
+                    waitSeconds = ((System.currentTimeMillis() - it.enqueuedAt) / 1000).coerceAtLeast(0),
+                )
+            },
+            recent = recent.map {
+                RecentRow(
+                    file = it.key.file.relativePath,
+                    function = it.key.name,
+                    stage = it.stage,
+                    attempts = it.attempts,
+                    error = it.error,
+                )
+            },
+            settings = snapshot,
+        )
+    }
+
+    private fun functionName(relativePath: String): String = relativePath.substringAfterLast('/')
 
     private fun scheduleScan() {
         scheduler.schedule("scan-tick", settings.snapshot().scanIntervalMillis) {

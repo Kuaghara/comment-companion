@@ -55,8 +55,8 @@ class IdeWorkspace(private val project: Project) : WorkspacePort {
 
     /** 把 Document 的改动提交给 PSI（否则锚定用的是旧语法树，offset 会错位）。 */
     private fun syncPsi(vf: VirtualFile) {
-        val psi = PsiManager.getInstance(project).findFile(vf) ?: return
-        val document = PsiDocumentManager.getInstance(project).getDocument(psi) ?: return
+        val psi = runRead { PsiManager.getInstance(project).findFile(vf) } ?: return
+        val document = runRead { PsiDocumentManager.getInstance(project).getDocument(psi) } ?: return
         ApplicationManager.getApplication().invokeAndWait {
             PsiDocumentManager.getInstance(project).commitDocument(document)
         }

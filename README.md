@@ -27,7 +27,10 @@
 | 修复循环（≤5 轮/60s，新错误回填） | ✅ M2b 沙盒验证（attempts=2 修复成功） |
 | 注释规范化作为收尾阶段（第二次落笔） | ✅ M2b 沙盒验证 |
 | 取消回滚（已落笔则反向 plan） | ✅ 已实现，待面板联调 |
-| 侧边窗口（底部三页导航）/ 设置页 / 状态栏 | ⏳ M3 |
+| 侧边窗口：底部三页导航（仪表盘 / 详细情况 / 设置） | ✅ M3a 沙盒验证（toolWindow shown） |
+| 状态栏 widget（队列数/暂停态） | ✅ M3a |
+| 账本持久化（`.idea/comment-companion-ledger.xml`，JSON 存储） | ✅ M3a |
+| `ai？` 问题流 / journal 崩溃恢复 / daemon 验证 | ⏳ M3b |
 
 ## M0 真机验证（2026-10-18，已通过）
 
@@ -116,6 +119,7 @@ comment-companion/
 - 结构（v2 已对齐）：[structure-design.md](docs/architecture/structure-design.md)
 - M1b 端到端验证：[m1b-pipeline-verification.md](docs/evidence/m1b-pipeline-verification.md)
 - M2b 验证/修复验证：[m2b-verification-repair.md](docs/evidence/m2b-verification-repair.md)
+- M3a 面板/状态栏验证：[m3a-panel-verification.md](docs/evidence/m3a-panel-verification.md)
 - GoLand 环境与可行性：[goland-2026.2-environment.md](docs/evidence/goland-2026.2-environment.md)
 - Aider `--watch-files` 源码审查：[aider-watch-files.md](docs/evidence/aider-watch-files.md)
 - pi-watcher 源码审查：[pi-watcher.md](docs/evidence/pi-watcher.md)
