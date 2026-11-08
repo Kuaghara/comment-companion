@@ -33,7 +33,7 @@ enum class VerificationMode {
 enum class TrustLevel { SAFE, BALANCED, TRUSTED }
 
 data class TrustPolicy(
-    val level: TrustLevel = TrustLevel.SAFE,
+    val level: TrustLevel = TrustLevel.BALANCED,
     val allowImportChange: Boolean = false,
     val allowSignatureChange: Boolean = false,
 )

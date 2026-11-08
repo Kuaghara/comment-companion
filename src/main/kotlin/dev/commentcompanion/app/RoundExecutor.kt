@@ -128,6 +128,16 @@ class RoundExecutor(
                     if (Regex("(?m)^\\s*func\\s").containsMatchIn(output.body)) {
                         return failed(item, original, "模型试图修改函数签名；MVP 只允许改函数体")
                     }
+                    val allowImports = settings.snapshot().trust.allowImportChange ||
+                        settings.snapshot().trust.level != dev.commentcompanion.core.model.TrustLevel.SAFE
+                    if (!allowImports && output.imports.isNotEmpty()) {
+                        return failed(
+                            item,
+                            original,
+                            "模型建议新增 import（${output.imports.joinToString { it.path }}），" +
+                                "当前信任级别 SAFE 需手动添加；可在设置里改为 BALANCED",
+                        )
+                    }
                     val importOps = output.imports
                         .filter { Regex("^[A-Za-z0-9_./-]+$").matches(it.path) }
                         .map { EditOp.AddImport(it.path, it.alias) }

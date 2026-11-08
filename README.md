@@ -66,6 +66,10 @@
 结论：plugin.xml 依赖声明被接受、Go PSI 在第三方插件里可用、注释协议在真实 PSI 文本上工作、编辑器与 Inlay 可用。
 细节与踩坑见 [m0-sandbox-verification.md](docs/evidence/m0-sandbox-verification.md)。
 
+## MVP 验收
+
+开发验收记录：[docs/acceptance-mvp.md](docs/acceptance-mvp.md)
+
 ## 环境要求
 
 - macOS（本机为 GoLand 2026.2.3，build `GO-262.10968.67`，自带 JBR 25）

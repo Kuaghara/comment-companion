@@ -5,6 +5,8 @@ import com.intellij.openapi.project.Project
 import dev.commentcompanion.app.CompanionController
 import dev.commentcompanion.app.PanelSnapshot
 import dev.commentcompanion.core.model.FailureRetry
+import dev.commentcompanion.core.model.TrustLevel
+import dev.commentcompanion.core.model.TrustPolicy
 import dev.commentcompanion.core.model.VerificationMode
 import dev.commentcompanion.ports.EngineProtocol
 import dev.commentcompanion.ports.EngineSource
@@ -191,6 +193,7 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
             border = BorderFactory.createEmptyBorder(12, 12, 12, 12)
             font = font.deriveFont(12f)
         }
+        private var historyExpanded = false
         private val pendingModel = javax.swing.DefaultListModel<dev.commentcompanion.app.PendingRow>()
         private val pendingList = javax.swing.JList(pendingModel).apply {
             visibleRowCount = 4
@@ -207,10 +210,17 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
                     controller.openFile(row.file, row.line)
                 }
             })
+            val historyToggle = JButton("展开历史")
+            historyToggle.addActionListener {
+                historyExpanded = !historyExpanded
+                historyToggle.text = if (historyExpanded) "收起历史" else "展开历史"
+                refresh(controller.panelSnapshot())
+            }
             val top = JPanel(BorderLayout()).apply {
                 add(JLabel("待你处理（双击跳转）"), BorderLayout.NORTH)
                 add(JScrollPane(pendingList), BorderLayout.CENTER)
-                preferredSize = Dimension(0, 130)
+                add(historyToggle, BorderLayout.SOUTH)
+                preferredSize = Dimension(0, 160)
             }
             add(top, BorderLayout.NORTH)
             add(JScrollPane(text), BorderLayout.CENTER)
@@ -237,7 +247,8 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
                 }
                 appendLine()
                 appendLine("最近记录（半展开，共 ${snapshot.recent.size}）")
-                snapshot.recent.takeLast(3).reversed().forEach { row ->
+                val recent = if (historyExpanded) snapshot.recent.takeLast(20) else snapshot.recent.takeLast(3)
+                recent.reversed().forEach { row ->
                     val mark = when (row.stage.name) {
                         "DONE" -> "✓"
                         "FAILED" -> "✗"
@@ -262,6 +273,7 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
         private val verification = javax.swing.JComboBox(VerificationMode.entries.toTypedArray())
         private val scanInterval = JSpinner(SpinnerNumberModel(2000, 500, 10_000, 100))
         private val retry = javax.swing.JComboBox(FailureRetry.entries.toTypedArray())
+        private val trust = javax.swing.JComboBox(TrustLevel.entries.toTypedArray())
         private var loaded = false
 
         init {
@@ -288,6 +300,7 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
             addRow("验证方式", verification)
             addRow("扫描间隔(ms)", scanInterval)
             addRow("失败重试", retry)
+            addRow("信任级别", trust)
 
             val save = JButton("保存")
             save.addActionListener { save() }
@@ -311,6 +324,7 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
             verification.selectedItem = snapshot.verificationMode
             scanInterval.value = snapshot.scanIntervalMillis.toInt()
             retry.selectedItem = snapshot.failureRetry
+            trust.selectedItem = snapshot.trust.level
             loaded = true
         }
 
@@ -329,6 +343,7 @@ class CompanionPanel(private val project: Project) : JPanel(BorderLayout()) {
                     verificationMode = verification.selectedItem as? VerificationMode ?: VerificationMode.GO_BUILD,
                     scanIntervalMillis = (scanInterval.value as? Number)?.toLong() ?: 2_000L,
                     failureRetry = retry.selectedItem as? FailureRetry ?: FailureRetry.AUTO_ONCE,
+                    trust = TrustPolicy(level = trust.selectedItem as? TrustLevel ?: TrustLevel.BALANCED),
                 )
             }
             val interval = (scanInterval.value as? Number)?.toLong() ?: 2_000L
