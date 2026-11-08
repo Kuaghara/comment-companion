@@ -87,6 +87,9 @@ VMOPTS="$SANDBOX/ide.vmoptions"
   if [[ "${SANDBOX_REAL_ENGINE:-}" == "" ]]; then
     echo "-Dcommentcompanion.engine=fake"
   fi
+  if [[ "${DAEMON_VERIFY:-}" != "" ]]; then
+    echo "-Dcommentcompanion.verificationMode=DAEMON_ONLY"
+  fi
   if [[ "${FAKE_ANSWER:-}" != "" ]]; then
     echo "-Dcommentcompanion.verifyAnswerAfterQuestion=true"
   fi

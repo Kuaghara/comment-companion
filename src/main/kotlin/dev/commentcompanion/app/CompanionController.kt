@@ -13,6 +13,7 @@ import dev.commentcompanion.core.model.VerificationMode
 import dev.commentcompanion.core.queue.QueueItem
 import dev.commentcompanion.core.queue.WorkQueue
 import dev.commentcompanion.ide.CompanionSettings
+import dev.commentcompanion.ide.DaemonVerifier
 import dev.commentcompanion.ide.GoBuildVerifier
 import dev.commentcompanion.ide.GoFileTracker
 import dev.commentcompanion.ide.IdeFeedback
@@ -46,10 +47,9 @@ class CompanionController(private val project: Project) : Disposable {
     private val queue = WorkQueue()
     private val scheduler = AlarmScheduler(this)
     private val verifier: VerifierPort =
-        if (settings.snapshot().verificationMode == VerificationMode.GO_BUILD) {
-            GoBuildVerifier(project, settings)
-        } else {
-            NoopVerifier
+        when (settings.snapshot().verificationMode) {
+            VerificationMode.GO_BUILD -> GoBuildVerifier(project, settings)
+            VerificationMode.DAEMON_ONLY -> DaemonVerifier(project)
         }
     private val executor = RoundExecutor(
         settings = settings,

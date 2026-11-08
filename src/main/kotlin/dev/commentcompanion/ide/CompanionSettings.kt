@@ -71,8 +71,10 @@ class CompanionSettings : PersistentStateComponent<CompanionSettings.State>, Set
         scanIntervalMillis = state.scanIntervalMillis,
         failureRetry = runCatching { FailureRetry.valueOf(state.failureRetry) }
             .getOrDefault(FailureRetry.AUTO_ONCE),
-        verificationMode = runCatching { VerificationMode.valueOf(state.verificationMode) }
-            .getOrDefault(VerificationMode.GO_BUILD),
+        verificationMode = System.getProperty("commentcompanion.verificationMode")
+            ?.let { runCatching { VerificationMode.valueOf(it) }.getOrNull() }
+            ?: runCatching { VerificationMode.valueOf(state.verificationMode) }
+                .getOrDefault(VerificationMode.GO_BUILD),
         trust = TrustPolicy(),
         engineSource = engineSource(),
         protocol = protocol(),

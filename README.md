@@ -36,7 +36,7 @@
 | 回答闭环：改指令 → 重新生成 → 清理 `ai？` | ✅ 沙盒验证（FAKE_ANSWER） |
 | 崩溃 Journal（落笔前记录 + 启动回滚） | ✅ 已实现（未做杀进程验证） |
 | StartupActivity → ProjectActivity 迁移（去掉 deprecated 警告） | ✅ |
-| daemon-only 验证模式 | ⏳ M3b 剩余 |
+| daemon-only 验证模式（GoLand 诊断，可切换） | ✅ 沙盒验证（VERIFY_FAILED → 修复 DONE） |
 
 ## M0 真机验证（2026-10-18，已通过）
 
@@ -127,6 +127,7 @@ comment-companion/
 - M2b 验证/修复验证：[m2b-verification-repair.md](docs/evidence/m2b-verification-repair.md)
 - M3a 面板/状态栏验证：[m3a-panel-verification.md](docs/evidence/m3a-panel-verification.md)
 - M3b 问题状态机：[m3b-question-flow.md](docs/evidence/m3b-question-flow.md)
+- daemon 验证模式：[daemon-verifier.md](docs/evidence/daemon-verifier.md)
 - DSH 配置来源：[dsh-config-source.md](docs/evidence/dsh-config-source.md)
 - GoLand 环境与可行性：[goland-2026.2-environment.md](docs/evidence/goland-2026.2-environment.md)
 - Aider `--watch-files` 源码审查：[aider-watch-files.md](docs/evidence/aider-watch-files.md)
