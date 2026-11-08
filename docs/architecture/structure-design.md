@@ -261,7 +261,7 @@ controller 状态变化 → 节流约 300ms → `invokeLater` 刷新；Panel 只
 | M0 | 工具链/插件加载/Go PSI/Inlay 真机验证 | ✅ 已完成 |
 | M1a | core + ports + 架构检查 | ✅ 已完成（56 测试） |
 | M1b | app 编排 + ide 适配（扫描/锚定/队列/状态栏） | ⏳ 下一步 |
-| M2 | 引擎 + 落笔 + go build 验证 + 修复循环 | ⏳ |
+| M2 | 引擎 + 落笔 + go build 验证 + 修复循环 | ✅ M2a/M2b（真实 API 未联调） |
 | M3 | `ai？` 问题流 + 侧边窗口（三页导航）+ 设置页 | ⏳ |
 | M4 | 跨文件/签名 + 信任级别 | ⏳ |
 | M5 | Ayane 接入（EnginePort 替换 + contract 映射） | ⏳ |

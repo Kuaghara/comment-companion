@@ -44,10 +44,22 @@ class IdeWorkspace(private val project: Project) : WorkspacePort {
         findVirtualFile(file)?.let { FileDocumentManager.getInstance().getDocument(it)?.text }
     }
 
-    override fun snapshot(file: FileKey, blockStartLine: Int): FunctionSnapshot? = runRead {
-        val vf = findVirtualFile(file) ?: return@runRead null
-        val psi = PsiManager.getInstance(project).findFile(vf) as? GoFile ?: return@runRead null
-        GoAnchor.snapshot(psi, project.basePath, blockStartLine)
+    override fun snapshot(file: FileKey, blockStartLine: Int): FunctionSnapshot? {
+        val vf = findVirtualFile(file) ?: return null
+        syncPsi(vf)
+        return runRead {
+            val psi = PsiManager.getInstance(project).findFile(vf) as? GoFile ?: return@runRead null
+            GoAnchor.snapshot(psi, project.basePath, blockStartLine)
+        }
+    }
+
+    /** 把 Document 的改动提交给 PSI（否则锚定用的是旧语法树，offset 会错位）。 */
+    private fun syncPsi(vf: VirtualFile) {
+        val psi = PsiManager.getInstance(project).findFile(vf) ?: return
+        val document = PsiDocumentManager.getInstance(project).getDocument(psi) ?: return
+        ApplicationManager.getApplication().invokeAndWait {
+            PsiDocumentManager.getInstance(project).commitDocument(document)
+        }
     }
 
     override fun commit(plan: EditPlan): CommitOutcome {
@@ -87,6 +99,7 @@ class IdeWorkspace(private val project: Project) : WorkspacePort {
                 // imports：M2 实现（GoFile.addImport）
             }, psi)
             outcome = CommitOutcome.Applied(document.modificationStamp)
+            PsiDocumentManager.getInstance(project).commitDocument(document)
         }
         return outcome
     }

@@ -7,7 +7,7 @@
 | 模块 | 状态 |
 |---|---|
 | Kotlin 离线工具链（JBR 25 + Kotlin 2.4.0 + JUnit 6） | ✅ 可用 |
-| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 67 个测试通过 |
+| 注释协议解析（`ai：` / `ai？`、全角/半角、块注释、续行、CRLF） | ✅ 71 个测试通过 |
 | 注释规范化（只改指令段、标记必然消失、防再次触发） | ✅ 已实现并测试 |
 | 空闲窗口 `IdleGate`（1–1.5s debounce 的纯逻辑） | ✅ 已实现并测试 |
 | 平台/Go PSI 的 Kotlin 互操作探针 | ✅ `scripts/check-platform.sh` 通过 |
@@ -23,7 +23,10 @@
 | 串行队列 + FakeEngine 端到端（生成→落笔→规范化→记账） | ✅ M1b 沙盒验证 |
 | 三种引擎协议（OpenAI Chat Completions / OpenAI Responses / Anthropic Messages） | ✅ M2a（HTTP 适配 + prompt/response 编解码） |
 | 设置持久化（`comment-companion.xml`）+ API Key（PasswordSafe） | ✅ M2a |
-| `go build` 验证 + 修复循环 + 收尾规范化 | ⏳ M2b |
+| `go build ./...` 验证 + baseline 差集 | ✅ M2b 沙盒验证 |
+| 修复循环（≤5 轮/60s，新错误回填） | ✅ M2b 沙盒验证（attempts=2 修复成功） |
+| 注释规范化作为收尾阶段（第二次落笔） | ✅ M2b 沙盒验证 |
+| 取消回滚（已落笔则反向 plan） | ✅ 已实现，待面板联调 |
 | 侧边窗口（底部三页导航）/ 设置页 / 状态栏 | ⏳ M3 |
 
 ## M0 真机验证（2026-10-18，已通过）
@@ -112,6 +115,7 @@ comment-companion/
 - 设计：[comment-companion-mvp-design.md](docs/comment-companion-mvp-design.md)
 - 结构（v2 已对齐）：[structure-design.md](docs/architecture/structure-design.md)
 - M1b 端到端验证：[m1b-pipeline-verification.md](docs/evidence/m1b-pipeline-verification.md)
+- M2b 验证/修复验证：[m2b-verification-repair.md](docs/evidence/m2b-verification-repair.md)
 - GoLand 环境与可行性：[goland-2026.2-environment.md](docs/evidence/goland-2026.2-environment.md)
 - Aider `--watch-files` 源码审查：[aider-watch-files.md](docs/evidence/aider-watch-files.md)
 - pi-watcher 源码审查：[pi-watcher.md](docs/evidence/pi-watcher.md)

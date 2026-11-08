@@ -84,6 +84,10 @@ VMOPTS="$SANDBOX/ide.vmoptions"
   echo "-Didea.log.path=$LOG"
   echo "-Dcommentcompanion.verifyTo=$SANDBOX/verify.json"
   echo "-Dcommentcompanion.verifyRounds=$SANDBOX/verify-rounds.jsonl"
+  if [[ "${FAKE_BAD_FIRST:-}" != "" ]]; then
+    echo "-Dcommentcompanion.engine=fake"
+    echo "-Dcommentcompanion.fake.badFirst=true"
+  fi
   if [[ "${DEBUG_PORT:-}" != "" ]]; then
     echo "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:$DEBUG_PORT"
   fi
