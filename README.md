@@ -7,7 +7,7 @@
 
 A comment-driven coding companion for Go. Write `// ai：...` above a function and the AI rewrites the body — no chat window, all communication happens in comments. A successful round ends by turning the instruction comment into an ordinary Go doc comment.
 
-Part of the [Ayane](https://github.com/Kuaghara/Ayane) project, usable standalone.
+Part of the [Ayane](https://github.com/ayane-ai) project, usable standalone.
 
 ```go
 // BEFORE

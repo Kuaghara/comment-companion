@@ -7,7 +7,7 @@
 
 注释驱动的 Go 编码伴侣：在函数上方写 `// ai：...`，AI 直接改函数体——没有聊天窗口，交流只发生在注释里。成功后会把指令注释规范化成普通 Go doc comment。
 
-是 [Ayane](https://github.com/Kuaghara/Ayane) 项目的一部分，也可以独立使用。
+是 [Ayane](https://github.com/ayane-ai) 项目的一部分，也可以独立使用。
 
 ```go
 // 处理前
