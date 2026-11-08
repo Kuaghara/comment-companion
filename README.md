@@ -1,66 +1,127 @@
-# Comment Companion (GoLand plugin)
+# Comment Companion
+
+> **Status: MVP (v0.1.0)** — single-file, function-level editing for GoLand 2026.2.x.
+> Cross-file edits and Ayane integration are not implemented yet. See [Roadmap](#roadmap).
 
 **English** | [简体中文](README.zh-CN.md)
 
-A comment-driven coding companion for Go. Write `// ai：...` above a function, and the AI rewrites the function body — no chat window, all communication happens in comments. After a successful round the instruction comment is normalized into an ordinary Go doc comment.
+A comment-driven coding companion for Go. Write `// ai：...` above a function and the AI rewrites the body — no chat window, all communication happens in comments. A successful round ends by turning the instruction comment into an ordinary Go doc comment.
 
-Originally built as the coding-companion body for [Ayane](docs/comment-companion-mvp-design.md); the plugin is also usable standalone.
-
----
-
-## Status
-
-**v0.1.0 — MVP complete.** Single-file, function-body editing for GoLand 2026.2.x.
-
-| Area | Status |
-|---|---|
-| Comment protocol (`ai：` / `ai？`, full/half-width, block comments, continuation, CRLF) | ✅ 79 tests |
-| 2s idle scan + serial queue (coordinates + fingerprint) | ✅ |
-| PSI anchoring (comment → enclosing func/method, 0–1 blank lines) | ✅ |
-| Minimal-diff write-back (body, then closing doc-comment normalization) | ✅ |
-| Engines: OpenAI Chat Completions / OpenAI Responses / Anthropic Messages | ✅ |
-| **Config read from DSH by default** (`~/.dsh` profile + credentials) | ✅ real model verified |
-| Verification: `go build ./...` (default) or GoLand daemon diagnostics | ✅ both modes |
-| Repair loop (≤5 rounds / 60s) + reverse-plan rollback + crash journal | ✅ |
-| `ai？` question flow: trailing comment → panel/notification → answer → regenerate → cleanup | ✅ |
-| Auto-imports suggested by the model (PSI `addImport`) | ✅ real model verified |
-| Tool window: dashboard (run/pause + status + pending) / details / settings | ✅ |
-| Status bar, persistent settings, persistent round ledger, trust levels | ✅ |
-
-Details and evidence: [docs/acceptance-mvp.md](docs/acceptance-mvp.md) · [docs/evidence/](docs/evidence/)
-
----
-
-## Install
-
-1. Download `comment-companion-0.1.0.zip` from [Releases](https://github.com/Kuaghara/comment-companion/releases).
-2. GoLand: `Settings | Plugins | Install Plugin from Disk…`, pick the zip, restart.
-3. By default the plugin reads model config from `~/.dsh` (DeepSeek Harness). To configure inside the plugin instead, set **Engine source = Plugin** in the plugin settings and fill in protocol / base URL / model / API key.
-
-Requirements: GoLand 2026.2.x (developed against 2026.2.3, build `GO-262.10968.67`), macOS (not yet tested on Windows/Linux).
-
----
-
-## Usage
+Part of the [Ayane](https://github.com/Kuaghara/Ayane) project, usable standalone.
 
 ```go
+// BEFORE
 // Add returns the sum of two ints.
 // ai：implement addition, int only
 func Add(a, b int) int {
 	return 0
 }
-```
 
-Save (IntelliJ auto-saves). Within ~2 seconds the plugin scans, anchors the comment to `Add`, asks the model for a body, writes it with a minimal diff, runs `go build ./...`, repairs if needed, and finally normalizes the comment:
-
-```go
+// AFTER (saved ~2s later)
 // Add returns the sum of two ints.
 func Add(a, b int) int {
 	return a + b
 }
 ```
 
-Open the **Comment Companion** tool window to see the queue, the active round, pending items and settings.
+**Features** · [Install](#install) · [Usage](#usage) · [Configuration](#configuration) · [How it works](#how-it-works) · [Roadmap](#roadmap) · [Docs](#documentation)
+
+---
+
+## Features
+
+- **Comment-driven, no chat UI** — `ai：` instructions and `ai？` questions live in your code; the editing happens where you're already looking.
+- **Automatic, idle-triggered** — scans every 2 seconds, processes only changed files, and only when its queue is empty.
+- **PSI-precise** — anchors instructions to the enclosing Go function/method and edits only that function body with a minimal diff.
+- **Verified before it stays** — runs `go build ./...` (or GoLand daemon diagnostics) and repairs compile errors for up to 5 rounds / 60s.
+- **Safe failure** — reverse-plan rollback, crash journal, one-command "undo this round".
+- **Config from DSH by default** — reuses the model configuration in `~/.dsh`; no API key to copy. Plugin-local BYOK is also supported.
+- **Three protocols** — OpenAI Chat Completions, OpenAI Responses, Anthropic Messages.
+- **Ask-back flow** — if the model needs clarification it writes a trailing `ai？` comment; answering the original `ai：` comment continues the round and cleans the question up.
+- **Auto-imports** — if the generated body needs a package, the plugin adds the import via PSI.
+- **Tool window** — dashboard (run/pause, status, pending), details (current round, queue, history), settings; plus a status-bar entry.
+
+---
+
+## Install
+
+1. Download `comment-companion-0.1.0.zip` from [Releases](https://github.com/Kuaghara/comment-companion/releases).
+2. GoLand: `Settings | Plugins | Install Plugin from Disk…`, select the zip, restart.
+3. Default: the plugin reads model config from `~/.dsh` (DeepSeek Harness). To use your own provider, set **Engine source = Plugin** in the plugin settings.
+
+Requirements: GoLand 2026.2.x (developed against 2026.2.3, build `GO-262.10968.67`), macOS (Windows/Linux untested).
+
+---
+
+## Usage
+
+1. Put a comment above a Go function:
+
+   ```go
+   // Add returns the sum of two ints.
+   // ai：implement addition, int only
+   func Add(a, b int) int {
+   	return 0
+   }
+   ```
+
+2. Save (IntelliJ auto-saves). Within ~2 seconds the plugin scans, generates, verifies and normalizes the comment.
+3. Open the **Comment Companion** tool window to watch the queue, the current round and pending items.
+4. If the AI asks you something (`ai？`), edit the original `ai：` comment to answer — the next round picks it up.
+
+---
+
+## Configuration
+
+| What | Where |
+|---|---|
+| Engine source | `DSH` (default) or `Plugin` — plugin settings → **Engine source** |
+| Model config (DSH) | `~/.dsh/profiles/<profile>/cordis.patch.yml` + `~/.dsh/.credentials.yaml` |
+| Model config (Plugin) | settings → protocol / Base URL / model / API key (stored in PasswordSafe) |
+| Verification | `go build ./...` (default) or GoLand daemon diagnostics |
+| Scan interval / retries / trust level | settings page |
+
+DSH is read-only: the plugin parses the active profile for provider, protocol, base URL and model, and resolves the API key from the credentials file.
+
+---
+
+## How it works
+
+```
+  2s tick (idle only)
+        │
+        ▼
+  scan changed Go files ──► text scan for `ai：` ──► serial queue
+                                                       │
+                                        PSI anchor ◄───┘
+                                             │
+                                   snapshot (version + hashes)
+                                             │
+                                     engine.generate()
+                                             │
+                        apply body ──► go build ──► repair loop
+                                             │
+                             normalize comment (closing step)
+                                             │
+                                      ledger + panel
+```
+
+Design notes: [docs/architecture/structure-design.md](docs/architecture/structure-design.md).
+
+---
+
+## Build from source
+
+```bash
+./scripts/bootstrap-toolchain.sh   # once: offline Kotlin + JUnit toolchain
+./scripts/test.sh                  # 79 unit tests + architecture check
+./scripts/build.sh                 # -> build/comment-companion-0.1.0.zip
+./scripts/dev-sandbox.sh           # isolated GoLand sandbox
+```
+
+The sandbox uses a deterministic fake engine by default. `SANDBOX_REAL_ENGINE=1 ./scripts/dev-sandbox.sh` uses the real model configured in DSH (consumes API quota).
+
+No system JDK / Gradle / Maven required: the scripts use the JBR bundled with GoLand.
 
 ---
 
@@ -68,28 +129,13 @@ Open the **Comment Companion** tool window to see the queue, the active round, p
 
 | Form | Meaning | Position rule |
 |---|---|---|
-| `// ai：...` / `// ai: ...` | user instruction | inside a `//` comment block, the marker must start a line; lines above it are the method description (preserved), lines below are instruction continuation |
+| `// ai：...` / `// ai: ...` | user instruction | must start a line inside a `//` comment block; lines above it are the method description (preserved), lines below are instruction continuation |
 | `// ai？...` / `// ai? ...` | AI question | same position rules |
-| `/* ... */` block comment | instruction | marker must start the first non-empty content line |
+| `/* ... */` | instruction | marker must start the first non-empty content line |
 
-- Case-insensitive marker; full-width or half-width colon/question mark; optional spaces around punctuation and after `//`.
-- After normalization the marker **must be gone** — this is the structural guarantee against re-triggering (Aider's `AI?` residue and pi-watcher's over-eager deletion both stem from marker cleanup being unreliable).
-- Comment lines outside the instruction segment (method description) are preserved verbatim.
-
----
-
-## Build from source
-
-```bash
-./scripts/bootstrap-toolchain.sh   # once: download offline Kotlin/JUnit toolchain (~70 MB)
-./scripts/test.sh                  # 79 unit tests + architecture check
-./scripts/build.sh                 # -> build/comment-companion-0.1.0.zip
-./scripts/dev-sandbox.sh           # isolated GoLand sandbox (does not touch your daily config)
-```
-
-The sandbox uses a fake engine by default. Set `SANDBOX_REAL_ENGINE=1 ./scripts/dev-sandbox.sh` to use the real model configured in DSH (consumes API quota).
-
-No system JDK/Gradle/Maven is required: the scripts use the JBR bundled with GoLand and download Kotlin from Maven Central on first run.
+- Case-insensitive marker; full-width or half-width colon/question mark; spaces are optional.
+- After normalization the marker **must be gone** — that is the structural guarantee against re-triggering.
+- Comment lines outside the instruction segment (the method description) are preserved verbatim.
 
 ---
 
@@ -98,17 +144,28 @@ No system JDK/Gradle/Maven is required: the scripts use the JBR bundled with GoL
 ```
 comment-companion/
 ├── src/main/kotlin/dev/commentcompanion/
-│   ├── core/          # pure Kotlin domain (protocol/model/plan/queue/policy/prompt)
-│   ├── ports/         # capability interfaces (workspace/engine/verifier/settings/ledger…)
-│   ├── app/           # orchestrator (scan cycle, round executor, controller)
-│   ├── ide/           # GoLand adapters (PSI, inlays, panel, settings, verifier)
-│   ├── engine/        # HTTP engines (OpenAI / Anthropic), fake engine
-│   └── plugin/        # legacy entry points used by the sandbox verifier
-├── scripts/           # offline build/test/sandbox scripts (bash 3.2 compatible)
-├── tools/             # compile-time platform probe (not packaged)
-├── docs/              # design, architecture, evidence, release notes
-└── build.gradle.kts   # future standard build (not used locally)
+│   ├── core/      # pure Kotlin: protocol, model, plan, queue, policy, prompt
+│   ├── ports/     # capability interfaces (workspace, engine, verifier, settings, ledger)
+│   ├── app/       # orchestrator: scan cycle, round executor, controller
+│   ├── ide/       # GoLand adapters: PSI, inlays, panel, settings, verifiers
+│   ├── engine/    # HTTP engines (OpenAI/Anthropic) + fake engine
+│   └── plugin/    # legacy sandbox entry points
+├── scripts/       # offline build / test / sandbox scripts
+├── tools/         # compile-time platform probe (not packaged)
+└── docs/          # design, architecture, evidence, release notes
 ```
+
+---
+
+## Roadmap
+
+- [x] Single-file MVP: scan → generate → verify → normalize
+- [x] DSH config, three protocols, tool window, question flow, imports
+- [ ] Cross-file context (read related files for better generation)
+- [ ] Same-package declarations (struct fields, helpers) in other files
+- [ ] Signature changes + call-site updates (with confirmation)
+- [ ] Ayane integration (`EnginePort` backend swap)
+- [ ] Trust-level UI polish, panel history filters
 
 ---
 
@@ -124,11 +181,10 @@ comment-companion/
 
 ## Known limitations
 
-- Single-file MVP: no cross-file edits; function signature changes are explicitly rejected.
-- Ayane integration is not done yet (`EnginePort` is the seam for it).
-- Verified in an isolated sandbox only; not yet installed into a daily GoLand instance.
-- Real-model runs cover a small sample (simple int/string functions); complex code, large files and unusual outputs need real-world testing.
-- macOS only so far; Windows/Linux untested.
+- Single-file MVP: no cross-file edits; function signature changes are rejected.
+- Verified in an isolated sandbox; not yet installed into a daily GoLand instance.
+- Real-model runs cover a small sample; complex code and large files need real-world testing.
+- macOS only so far.
 
 ---
 
