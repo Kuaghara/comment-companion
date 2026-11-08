@@ -71,4 +71,4 @@ AI 配置**默认从 DeepSeek Harness（DSH）读取**（`~/.dsh` 的 profile + 
 
 ## 许可
 
-仓库当前没有 LICENSE 文件（保留所有权利）。如需开源复用，请先添加许可证（例如 MIT）。
+[MIT](../LICENSE) © 2026 Kuaghara
