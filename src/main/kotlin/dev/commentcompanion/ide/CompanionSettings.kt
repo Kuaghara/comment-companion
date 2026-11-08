@@ -1,81 +1,103 @@
 package dev.commentcompanion.ide
 
+import com.intellij.credentialStore.CredentialAttributes
+import com.intellij.credentialStore.Credentials
+import com.intellij.ide.passwordSafe.PasswordSafe
+import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
 import dev.commentcompanion.core.model.FailureRetry
 import dev.commentcompanion.core.model.TrustPolicy
 import dev.commentcompanion.core.model.VerificationMode
 import dev.commentcompanion.ports.CompanionSettingsSnapshot
 import dev.commentcompanion.ports.EngineConfig
+import dev.commentcompanion.ports.EngineProtocol
 import dev.commentcompanion.ports.SettingsPort
 
-/** 引擎协议（D15）。 */
-enum class EngineProtocol(val label: String) {
-    OPENAI_CHAT_COMPLETIONS("OpenAI Chat Completions"),
-    OPENAI_RESPONSES("OpenAI Responses"),
-    ANTHROPIC_MESSAGES("Anthropic Messages"),
-}
-
 /**
- * 设置（M1b 先用内存版；M2 换成 PersistentStateComponent + PasswordSafe）。
+ * 设置：application 级持久化（`comment-companion.xml`）。
+ * API Key 走 PasswordSafe，不进 XML。
  */
+@State(name = "CommentCompanionSettings", storages = [Storage("comment-companion.xml")])
 @Service(Service.Level.APP)
-class CompanionSettings : SettingsPort {
+class CompanionSettings : PersistentStateComponent<CompanionSettings.State>, SettingsPort {
 
-    private var enabled = true
-    private var scanIntervalMillis = 2_000L
-    private var failureRetry = FailureRetry.AUTO_ONCE
-    private var verificationMode = VerificationMode.GO_BUILD
-    private var trust = TrustPolicy()
-    private var protocol = EngineProtocol.OPENAI_CHAT_COMPLETIONS
-    private var baseUrl = "https://api.openai.com/v1"
-    private var model = ""
-    private var temperature = 0.2
-    private var timeoutMillis = 60_000L
-    private var maxTokens = 4096
-    private var apiKey: String? = null
+    /** XML 序列化用的可变状态（字段保持简单类型）。 */
+    class State {
+        var enabled: Boolean = true
+        var scanIntervalMillis: Long = 2_000
+        var failureRetry: String = FailureRetry.AUTO_ONCE.name
+        var verificationMode: String = VerificationMode.GO_BUILD.name
+        var protocol: String = EngineProtocol.OPENAI_CHAT_COMPLETIONS.name
+        var baseUrl: String = EngineProtocol.OPENAI_CHAT_COMPLETIONS.defaultBaseUrl
+        var model: String = ""
+        var temperature: Double = 0.2
+        var timeoutMillis: Long = 60_000
+        var maxTokens: Int = 4096
+        var goExecutable: String = "go"
+        var buildTimeoutMillis: Long = 60_000
+    }
 
-    fun protocol(): EngineProtocol = protocol
+    private var state = State()
+
+    override fun getState(): State = state
+
+    override fun loadState(state: State) {
+        this.state = state
+    }
+
+    fun protocol(): EngineProtocol =
+        runCatching { EngineProtocol.valueOf(state.protocol) }.getOrDefault(EngineProtocol.OPENAI_CHAT_COMPLETIONS)
 
     fun setProtocol(value: EngineProtocol) {
-        protocol = value
+        state.protocol = value.name
+        if (state.baseUrl.isBlank()) state.baseUrl = value.defaultBaseUrl
     }
 
-    fun maxTokens(): Int = maxTokens
+    fun maxTokens(): Int = state.maxTokens
 
-    override fun snapshot(): CompanionSettingsSnapshot {
-        val snapshot = CompanionSettingsSnapshot(
-            enabled = enabled,
-            scanIntervalMillis = scanIntervalMillis,
-            failureRetry = failureRetry,
-            verificationMode = verificationMode,
-            trust = trust,
-            engine = EngineConfig(
-                baseUrl = baseUrl,
-                model = model,
-                temperature = temperature,
-                timeoutMillis = timeoutMillis,
-            ),
-            apiKeyConfigured = apiKey != null,
-        )
-        return snapshot
+    override fun snapshot(): CompanionSettingsSnapshot = CompanionSettingsSnapshot(
+        enabled = state.enabled,
+        scanIntervalMillis = state.scanIntervalMillis,
+        failureRetry = runCatching { FailureRetry.valueOf(state.failureRetry) }
+            .getOrDefault(FailureRetry.AUTO_ONCE),
+        verificationMode = runCatching { VerificationMode.valueOf(state.verificationMode) }
+            .getOrDefault(VerificationMode.GO_BUILD),
+        trust = TrustPolicy(),
+        protocol = protocol(),
+        engine = EngineConfig(
+            baseUrl = state.baseUrl.ifBlank { protocol().defaultBaseUrl },
+            model = state.model,
+            temperature = state.temperature,
+            timeoutMillis = state.timeoutMillis,
+        ),
+        apiKeyConfigured = apiKey() != null,
+        goExecutable = state.goExecutable.ifBlank { "go" },
+        buildTimeoutMillis = state.buildTimeoutMillis,
+    )
+
+    override fun apiKey(): String? =
+        PasswordSafe.instance.get(attributes())?.getPasswordAsString()
+
+    fun setApiKey(value: String?) {
+        PasswordSafe.instance.set(attributes(), value?.takeIf { it.isNotBlank() }?.let { Credentials("api-key", it) })
     }
-
-    override fun apiKey(): String? = apiKey
 
     override fun update(transform: (CompanionSettingsSnapshot) -> CompanionSettingsSnapshot) {
         val next = transform(snapshot())
-        enabled = next.enabled
-        scanIntervalMillis = next.scanIntervalMillis
-        failureRetry = next.failureRetry
-        verificationMode = next.verificationMode
-        trust = next.trust
-        baseUrl = next.engine.baseUrl
-        model = next.engine.model
-        temperature = next.engine.temperature
-        timeoutMillis = next.engine.timeoutMillis
+        state.enabled = next.enabled
+        state.scanIntervalMillis = next.scanIntervalMillis
+        state.failureRetry = next.failureRetry.name
+        state.verificationMode = next.verificationMode.name
+        state.protocol = next.protocol.name
+        state.baseUrl = next.engine.baseUrl
+        state.model = next.engine.model
+        state.temperature = next.engine.temperature
+        state.timeoutMillis = next.engine.timeoutMillis
+        state.goExecutable = next.goExecutable
+        state.buildTimeoutMillis = next.buildTimeoutMillis
     }
 
-    fun setApiKey(value: String?) {
-        apiKey = value
-    }
+    private fun attributes(): CredentialAttributes = CredentialAttributes("comment-companion", "api-key")
 }

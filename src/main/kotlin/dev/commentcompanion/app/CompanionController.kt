@@ -17,7 +17,7 @@ import dev.commentcompanion.core.prompt.EngineResult
 import dev.commentcompanion.core.prompt.PromptPayload
 import dev.commentcompanion.core.queue.QueueItem
 import dev.commentcompanion.core.queue.WorkQueue
-import dev.commentcompanion.engine.FakeEngine
+import dev.commentcompanion.engine.EngineFactory
 import dev.commentcompanion.ide.CompanionSettings
 import dev.commentcompanion.ide.GoFileTracker
 import dev.commentcompanion.ide.IdeFeedback
@@ -51,7 +51,6 @@ class CompanionController(private val project: Project) : Disposable {
     private val feedback = IdeFeedback(project)
     private val queue = WorkQueue()
     private val scheduler = AlarmScheduler(this)
-    private val engine: EnginePort = FakeEngine()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Volatile
@@ -140,7 +139,7 @@ class CompanionController(private val project: Project) : Disposable {
         )
         queue.markStage(item.seq, RoundStage.GENERATING)
         val config = settings.snapshot().engine
-        val result = engine.generate(
+        val result = EngineFactory.create(settings).generate(
             EngineRequest(
                 payload = payload,
                 model = config.model,

@@ -5,6 +5,7 @@ set -eo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/scripts/env.sh"
 require_kotlin
+ensure_platform_cp
 
 "$ROOT/scripts/check-architecture.sh"
 
@@ -25,7 +26,7 @@ kotlin_compile "$TEST_CLASSES" "$CLASSES:$PLATFORM_CP:$KOTLIN_STDLIB:$JUNIT_CONS
 
 echo
 "$JAVA" -jar "$JUNIT_CONSOLE" execute \
-  --class-path "$CLASSES:$TEST_CLASSES:$KOTLIN_STDLIB" \
+  --class-path "$CLASSES:$TEST_CLASSES:$KOTLIN_STDLIB:$PLATFORM_CP" \
   --scan-class-path "$TEST_CLASSES" \
   --details=tree \
   --disable-ansi-colors

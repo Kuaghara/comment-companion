@@ -4,7 +4,7 @@ import dev.commentcompanion.core.model.FailureRetry
 import dev.commentcompanion.core.model.TrustPolicy
 import dev.commentcompanion.core.model.VerificationMode
 
-/** 引擎配置（BYOK：OpenAI 兼容端点）。 */
+/** 引擎配置（BYOK：OpenAI 兼容 / OpenAI Responses / Anthropic）。 */
 data class EngineConfig(
     val baseUrl: String = "https://api.openai.com/v1",
     val model: String = "",
@@ -22,8 +22,12 @@ data class CompanionSettingsSnapshot(
     /** 验证方式：go build 还是只用 daemon（用户要求做成开关，默认 go build）。 */
     val verificationMode: VerificationMode = VerificationMode.GO_BUILD,
     val trust: TrustPolicy = TrustPolicy(),
+    val protocol: EngineProtocol = EngineProtocol.OPENAI_CHAT_COMPLETIONS,
     val engine: EngineConfig = EngineConfig(),
     val apiKeyConfigured: Boolean = false,
+    /** go build 验证器使用的可执行文件与超时。 */
+    val goExecutable: String = "go",
+    val buildTimeoutMillis: Long = 60_000,
 )
 
 interface SettingsPort {
