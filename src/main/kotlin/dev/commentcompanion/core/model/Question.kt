@@ -24,6 +24,8 @@ data class QuestionState(
     val instructionHash: String,
     val askedAtRound: Int,
     val status: QuestionStatus = QuestionStatus.PENDING,
+    /** AI 的问题原文（落盘后给面板展示）。 */
+    val question: String? = null,
 )
 
 /**

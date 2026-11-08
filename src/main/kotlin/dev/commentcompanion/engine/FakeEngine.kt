@@ -21,6 +21,11 @@ class FakeEngine : EnginePort {
         val callKey = request.payload.file + "#" + request.payload.functionName
         val callNo = calls.merge(callKey, 1, Int::plus) ?: 1
         val badFirst = System.getProperty("commentcompanion.fake.badFirst") == "true" && callNo == 1
+        if (System.getProperty("commentcompanion.fake.question") == "true" && callNo == 1) {
+            return EngineResult.Success(
+                EngineOutput(body = "", comment = emptyList(), question = "需要处理溢出的情况吗？"),
+            )
+        }
         val body = if (badFirst) "{\n\treturn undefinedVar\n}" else "{\n\treturn 0\n}"
         val commentText = instruction.ifBlank { "TODO" }
         // 注释行由调用方渲染为 // 前缀；这里保证不会重新构成标记

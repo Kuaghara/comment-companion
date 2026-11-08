@@ -20,6 +20,11 @@ interface RoundLedgerPort {
 
     fun question(key: FunctionKey): QuestionState?
 
+    /** 扫描去重：该文件 + 指令哈希是否已有待回答的问题。 */
+    fun pendingQuestionFor(file: dev.commentcompanion.core.model.FileKey, instructionHash: String): QuestionState?
+
+    fun pendingQuestions(): List<QuestionState>
+
     fun updateQuestion(state: QuestionState?)
 
     fun recent(limit: Int): List<RoundRecord>

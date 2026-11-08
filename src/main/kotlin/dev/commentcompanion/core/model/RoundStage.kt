@@ -21,24 +21,26 @@ enum class RoundStage {
     VERIFYING,
     REPAIRING,
     NORMALIZING,
+    WAITING_ANSWER,
     DONE,
     FAILED,
     CANCELLED,
     STALE;
 
     val isTerminal: Boolean
-        get() = this == DONE || this == FAILED || this == CANCELLED || this == STALE
+        get() = this == DONE || this == FAILED || this == CANCELLED || this == STALE || this == WAITING_ANSWER
 
     companion object {
         private val ALLOWED: Map<RoundStage, Set<RoundStage>> = mapOf(
             QUEUED to setOf(SNAPSHOT, CANCELLED),
             SNAPSHOT to setOf(GENERATING, STALE, FAILED, CANCELLED),
             GENERATING to setOf(PARSING, FAILED, CANCELLED),
-            PARSING to setOf(APPLYING, REPAIRING, FAILED, CANCELLED),
+            PARSING to setOf(APPLYING, REPAIRING, WAITING_ANSWER, FAILED, CANCELLED),
             APPLYING to setOf(VERIFYING, FAILED, CANCELLED, STALE),
             VERIFYING to setOf(NORMALIZING, REPAIRING, FAILED, CANCELLED),
             REPAIRING to setOf(GENERATING, FAILED, CANCELLED),
             NORMALIZING to setOf(DONE, FAILED, CANCELLED),
+            WAITING_ANSWER to emptySet(),
             DONE to emptySet(),
             FAILED to emptySet(),
             CANCELLED to emptySet(),

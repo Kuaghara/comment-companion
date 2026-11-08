@@ -47,6 +47,12 @@ class RoundStageTest {
     }
 
     @Test
+    fun `解析阶段可以进入等待回答`() {
+        assertTrue(RoundStage.canTransition(RoundStage.PARSING, RoundStage.WAITING_ANSWER))
+        assertTrue(RoundStage.WAITING_ANSWER.isTerminal)
+    }
+
+    @Test
     fun `非法迁移被拒绝`() {
         assertFalse(RoundStage.canTransition(RoundStage.QUEUED, RoundStage.DONE))
         assertFalse(RoundStage.canTransition(RoundStage.GENERATING, RoundStage.NORMALIZING))

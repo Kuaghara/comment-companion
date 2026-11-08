@@ -4,6 +4,9 @@ import dev.commentcompanion.core.model.EditOp
 import dev.commentcompanion.core.model.EditPlan
 import dev.commentcompanion.core.model.FunctionSnapshot
 import dev.commentcompanion.core.model.Hashing
+import dev.commentcompanion.core.model.QuestionResolver
+import dev.commentcompanion.core.model.QuestionState
+import dev.commentcompanion.core.model.QuestionStatus
 import dev.commentcompanion.core.model.RepairPolicy
 import dev.commentcompanion.core.model.RoundRecord
 import dev.commentcompanion.core.model.RoundStage
@@ -11,6 +14,7 @@ import dev.commentcompanion.core.prompt.EngineRequest
 import dev.commentcompanion.core.prompt.EngineResult
 import dev.commentcompanion.core.prompt.PromptPayload
 import dev.commentcompanion.core.protocol.CommentProtocol
+import dev.commentcompanion.core.protocol.MarkerType
 import dev.commentcompanion.core.queue.QueueItem
 import dev.commentcompanion.core.queue.WorkQueue
 import dev.commentcompanion.engine.EngineFactory
@@ -26,6 +30,7 @@ sealed interface RoundResult {
     data class Failed(val message: String) : RoundResult
     data object Stale : RoundResult
     data object Cancelled : RoundResult
+    data class Question(val text: String) : RoundResult
 }
 
 /**
@@ -53,8 +58,15 @@ class RoundExecutor(
     suspend fun execute(item: QueueItem): RoundResult {
         if (isPaused()) return cancelled(item)
         queue.markStage(item.seq, RoundStage.SNAPSHOT)
-        val original = workspace.snapshot(item.file, item.blockStartLine)
-            ?: return stale(item)
+        val original = snapshotFor(item) ?: return stale(item)
+        resolveExistingQuestion(original)
+        val pendingQuestion = ledger.question(original.key)
+        if (pendingQuestion?.status == QuestionStatus.PENDING &&
+            pendingQuestion.instructionHash == Hashing.sha256(original.instruction.text)
+        ) {
+            queue.markStage(item.seq, RoundStage.WAITING_ANSWER)
+            return RoundResult.Question("等待用户回答问题")
+        }
 
         val baseline = verifier.baseline(item.file)
         val policy = RepairPolicy()
@@ -101,7 +113,7 @@ class RoundExecutor(
                     queue.markStage(item.seq, RoundStage.PARSING)
                     val output = result.output
                     if (output.question != null) {
-                        return failed(item, original, "模型反问（问题流 M3）：${output.question}")
+                        return askQuestion(item, original, output.question)
                     }
                     if (output.body.isBlank() || output.comment.isEmpty()) {
                         return failed(item, original, "模型输出不完整（body/comment 缺失）")
@@ -143,7 +155,7 @@ class RoundExecutor(
                         }
                         // 收尾阶段：规范化注释（第二次落笔）
                         queue.markStage(item.seq, RoundStage.NORMALIZING)
-                        val normalizeFresh = workspace.snapshot(item.file, item.blockStartLine)
+                        val normalizeFresh = snapshotFor(item)
                             ?: return failed(item, original, "规范化时函数定位失败")
                         val commentLines = original.descriptionLines.map { it.trim() }
                             .filter { it.isNotEmpty() } + modelComment
@@ -184,8 +196,58 @@ class RoundExecutor(
         }
     }
 
+    /** 行号会因前面注释被改写而漂移：锚定失败时按 instructionHash 在文件里找回。 */
+    private fun snapshotFor(item: QueueItem): FunctionSnapshot? {
+        workspace.snapshot(item.file, item.blockStartLine)?.let { return it }
+        val text = workspace.readText(item.file) ?: return null
+        val block = CommentProtocol.directives(text.lines()).firstOrNull {
+            it.directive != null && Hashing.sha256(it.directive!!.text) == item.instructionHash
+        } ?: return null
+        return workspace.snapshot(item.file, block.startLine)
+    }
+
+    /**
+     * 记录 AI 的提问（QuestionState + WAITING_ANSWER）。
+     *
+     * 注意：M3b 阶段先只记录状态并展示（面板/通知/Inlay）；
+     * 把 `ai？` 写成真实注释留到下一步（需要和注释规范化的区间玩法统一）。
+     */
+    private fun askQuestion(item: QueueItem, original: FunctionSnapshot, question: String): RoundResult {
+        val record = record(original, item, RoundStage.WAITING_ANSWER)
+        ledger.updateQuestion(
+            QuestionState(
+                key = original.key,
+                questionHash = Hashing.sha256(question),
+                questionLine = original.commentRawLines.size + original.commentBlockRange.first,
+                instructionHash = Hashing.sha256(original.instruction.text),
+                askedAtRound = record.roundNo,
+                status = QuestionStatus.PENDING,
+                question = question,
+            ),
+        )
+        VerifyHooks.roundCompleted(original.key.name, "QUESTION", question.take(120))
+        queue.markStage(item.seq, RoundStage.WAITING_ANSWER)
+        return RoundResult.Question(question)
+    }
+
+    /** 用户改了指令 → ANSWERED；ai？ 注释被删 → MOOT。 */
+    private fun resolveExistingQuestion(original: FunctionSnapshot) {
+        val existing = ledger.question(original.key) ?: return
+        if (existing.status != QuestionStatus.PENDING) return
+        val questionPresent = original.commentRawLines.any { line ->
+            val content = line.trimStart().removePrefix("//").trim()
+            CommentProtocol.classify(content)?.first == MarkerType.QUESTION
+        }
+        val status = QuestionResolver.resolve(
+            existing,
+            Hashing.sha256(original.instruction.text),
+            questionPresent,
+        )
+        if (status != existing.status) ledger.updateQuestion(existing.copy(status = status))
+    }
+
     private fun rollbackBody(item: QueueItem, original: FunctionSnapshot): Boolean {
-        val fresh = workspace.snapshot(item.file, item.blockStartLine) ?: return false
+        val fresh = snapshotFor(item) ?: return false
         val plan = EditPlan(
             target = fresh.key,
             snapshot = fresh,
@@ -231,10 +293,9 @@ class RoundExecutor(
         item: QueueItem,
         stage: RoundStage,
         error: String? = null,
-    ) {
+    ): RoundRecord {
         val previous = ledger.lastRecord(original.key)
-        ledger.record(
-            RoundRecord(
+        val record = RoundRecord(
                 key = original.key,
                 roundNo = (previous?.roundNo ?: 0) + 1,
                 instructionHash = Hashing.sha256(original.instruction.text),
@@ -244,7 +305,8 @@ class RoundExecutor(
                 model = settings.snapshot().engine.model,
                 attempts = item.attempts + 1,
                 error = error,
-            ),
-        )
+            )
+        ledger.record(record)
+        return record
     }
 }

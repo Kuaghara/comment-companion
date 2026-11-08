@@ -104,7 +104,7 @@ class CompanionController(private val project: Project) : Disposable {
         val active = queue.active()
         val queued = queue.pendingItems()
         val recent = ledger.recent(20)
-        val pending = recent
+        val failedPending = recent
             .filter { it.stage == RoundStage.FAILED }
             .distinctBy { it.key.ledgerKey() + it.instructionHash }
             .map { record ->
@@ -113,6 +113,13 @@ class CompanionController(private val project: Project) : Disposable {
                     detail = record.error ?: "生成失败，可重试",
                 )
             }
+        val questionPending = ledger.pendingQuestions().map { state ->
+            PendingRow(
+                title = "${state.key.file.relativePath} › ${state.key.name}",
+                detail = "ai？ ${state.question ?: "等你回答"}",
+            )
+        }
+        val pending = questionPending + failedPending
 
         val statusText = when {
             paused -> "已暂停"
@@ -178,7 +185,9 @@ class CompanionController(private val project: Project) : Disposable {
         }
     }
 
-    private fun shouldSkip(file: FileKey, hash: String): Boolean = (failures[failureKey(file, hash)] ?: 0) > 1
+    private fun shouldSkip(file: FileKey, hash: String): Boolean =
+        (failures[failureKey(file, hash)] ?: 0) > 1 ||
+            ledger.pendingQuestionFor(file, hash) != null
 
     private suspend fun workerLoop() {
         while (scope.isActive) {
@@ -197,6 +206,10 @@ class CompanionController(private val project: Project) : Disposable {
                 is RoundResult.Failed -> {
                     feedback.notifyError("Comment Companion", "生成失败：${result.message}")
                     maybeRetry(item)
+                }
+                is RoundResult.Question -> {
+                    feedback.notifyInfo("Comment Companion", "需要你的回答：${result.text}")
+                    feedback.showTransientHint(item.file, item.blockStartLine, "等你回答 · ai？", 4_000)
                 }
                 RoundResult.Stale, RoundResult.Cancelled -> Unit
             }

@@ -72,6 +72,20 @@ class RoundLedgerStore(@Suppress("unused") private val project: Project) :
     override fun question(key: FunctionKey): QuestionState? = questions[key.ledgerKey()]
 
     @Synchronized
+    override fun pendingQuestions(): List<QuestionState> =
+        questions.values.filter { it.status == dev.commentcompanion.core.model.QuestionStatus.PENDING }
+
+    @Synchronized
+    override fun pendingQuestionFor(
+        file: dev.commentcompanion.core.model.FileKey,
+        instructionHash: String,
+    ): QuestionState? = questions.values.firstOrNull {
+        it.status == dev.commentcompanion.core.model.QuestionStatus.PENDING &&
+            it.key.file == file &&
+            it.instructionHash == instructionHash
+    }
+
+    @Synchronized
     override fun updateQuestion(state: QuestionState?) {
         if (state == null) return
         questions[state.key.ledgerKey()] = state

@@ -84,6 +84,10 @@ VMOPTS="$SANDBOX/ide.vmoptions"
   echo "-Didea.log.path=$LOG"
   echo "-Dcommentcompanion.verifyTo=$SANDBOX/verify.json"
   echo "-Dcommentcompanion.verifyRounds=$SANDBOX/verify-rounds.jsonl"
+  if [[ "${FAKE_QUESTION:-}" != "" ]]; then
+    echo "-Dcommentcompanion.engine=fake"
+    echo "-Dcommentcompanion.fake.question=true"
+  fi
   if [[ "${FAKE_BAD_FIRST:-}" != "" ]]; then
     echo "-Dcommentcompanion.engine=fake"
     echo "-Dcommentcompanion.fake.badFirst=true"
