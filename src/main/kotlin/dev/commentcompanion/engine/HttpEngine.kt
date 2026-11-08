@@ -82,9 +82,12 @@ class HttpEngine(
 
     private fun base(): String = config.baseUrl.trimEnd('/')
 
+    private fun effectiveModel(request: EngineRequest): String =
+        request.model.ifBlank { config.model }
+
     private fun prepareChat(messages: PromptBuilder.Messages, request: EngineRequest): Prepared {
         val body = JsonObject().apply {
-            addProperty("model", request.model)
+            addProperty("model", effectiveModel(request))
             addProperty("temperature", request.temperature)
             add("messages", JsonParser.parseString(
                 """[{"role":"system","content":${json(messages.system)}},{"role":"user","content":${json(messages.user)}}]"""
@@ -95,7 +98,7 @@ class HttpEngine(
 
     private fun prepareResponses(messages: PromptBuilder.Messages, request: EngineRequest): Prepared {
         val body = JsonObject().apply {
-            addProperty("model", request.model)
+            addProperty("model", effectiveModel(request))
             addProperty("instructions", messages.system)
             addProperty("input", messages.user)
             addProperty("temperature", request.temperature)
@@ -105,7 +108,7 @@ class HttpEngine(
 
     private fun prepareAnthropic(messages: PromptBuilder.Messages, request: EngineRequest): Prepared {
         val body = JsonObject().apply {
-            addProperty("model", request.model)
+            addProperty("model", effectiveModel(request))
             addProperty("max_tokens", 4096)
             addProperty("temperature", request.temperature)
             addProperty("system", messages.system)

@@ -23,6 +23,7 @@
 | 串行队列 + FakeEngine 端到端（生成→落笔→规范化→记账） | ✅ M1b 沙盒验证 |
 | 三种引擎协议（OpenAI Chat Completions / OpenAI Responses / Anthropic Messages） | ✅ M2a（HTTP 适配 + prompt/response 编解码） |
 | **从 DSH 读模型配置（默认）**：provider/model/协议/BaseURL/Key | ✅ 沙盒验证（step / step-5-preview / anthropic） |
+| **真实模型端到端**（生成 → go build → 规范化） | ✅ step-5-preview 沙盒实测（两个函数成功） |
 | 设置持久化（`comment-companion.xml`）+ API Key（PasswordSafe） | ✅ M2a |
 | `go build ./...` 验证 + baseline 差集 | ✅ M2b 沙盒验证 |
 | 修复循环（≤5 轮/60s，新错误回填） | ✅ M2b 沙盒验证（attempts=2 修复成功） |
@@ -128,6 +129,7 @@ comment-companion/
 - M3a 面板/状态栏验证：[m3a-panel-verification.md](docs/evidence/m3a-panel-verification.md)
 - M3b 问题状态机：[m3b-question-flow.md](docs/evidence/m3b-question-flow.md)
 - daemon 验证模式：[daemon-verifier.md](docs/evidence/daemon-verifier.md)
+- 真实模型端到端：[real-model-e2e.md](docs/evidence/real-model-e2e.md)
 - DSH 配置来源：[dsh-config-source.md](docs/evidence/dsh-config-source.md)
 - GoLand 环境与可行性：[goland-2026.2-environment.md](docs/evidence/goland-2026.2-environment.md)
 - Aider `--watch-files` 源码审查：[aider-watch-files.md](docs/evidence/aider-watch-files.md)

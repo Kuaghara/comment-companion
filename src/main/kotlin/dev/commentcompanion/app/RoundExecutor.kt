@@ -100,12 +100,13 @@ class RoundExecutor(
                 instruction = original.instruction.text,
                 repairErrors = repairErrors,
             )
-            val result = EngineFactory.create(settings).generate(
+            val resolved = EngineFactory.resolve(settings)
+            val result = resolved.engine.generate(
                 EngineRequest(
                     payload = payload,
-                    model = snapshot.engine.model,
-                    temperature = snapshot.engine.temperature,
-                    timeoutMillis = snapshot.engine.timeoutMillis,
+                    model = resolved.config.model,
+                    temperature = resolved.config.temperature,
+                    timeoutMillis = resolved.config.timeoutMillis,
                 ),
             )
 
@@ -161,8 +162,9 @@ class RoundExecutor(
                         queue.markStage(item.seq, RoundStage.NORMALIZING)
                         val normalizeFresh = snapshotFor(item)
                             ?: return failed(item, original, "规范化时函数定位失败")
-                        val commentLines = original.descriptionLines.map { it.trim() }
-                            .filter { it.isNotEmpty() } + modelComment
+                        // 去重：模型有时会把描述行又写一遍
+                        val commentLines = (original.descriptionLines.map { it.trim() }.filter { it.isNotEmpty() } + modelComment)
+                            .distinct()
                         val commentPlan = EditPlan(
                             target = normalizeFresh.key,
                             snapshot = normalizeFresh,
@@ -180,7 +182,16 @@ class RoundExecutor(
                         record(original, item, RoundStage.DONE)
                         journal.clear()
                         runCatching { workspace.cleanupTrailingQuestion(item.file, original.key) }
-                        VerifyHooks.roundCompleted(original.key.name, "DONE", "attempts=$attempt verifier=${verifier.javaClass.simpleName} mode=${settings.snapshot().verificationMode}")
+                        val docDump = if (System.getProperty("commentcompanion.verifyRounds") != null) {
+                            " | doc=" + (workspace.readText(item.file) ?: "").replace("\n", "\\n").take(800)
+                        } else {
+                            ""
+                        }
+                        VerifyHooks.roundCompleted(
+                            original.key.name,
+                            "DONE",
+                            "attempts=$attempt verifier=${verifier.javaClass.simpleName} mode=${settings.snapshot().verificationMode}$docDump",
+                        )
                         queue.markStage(item.seq, RoundStage.DONE)
                         return RoundResult.Done(original.key.name)
                     }
